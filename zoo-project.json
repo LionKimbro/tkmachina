@@ -1,0 +1,13 @@
+{
+  "zookeep-project-guid": "d30c44ed-df27-408f-acce-590995054157",
+  "name": "tkmachina",
+  "repo-type": "python-2026-03",
+  "license": "CC0-1.0",
+  "repository": {
+    "name": "tkmachina",
+    "visibility": "public"
+  },
+  "python-package": {
+    "name": "tkmachina"
+  }
+}
