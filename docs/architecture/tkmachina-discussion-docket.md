@@ -21,17 +21,18 @@ review it in, and what current posture seems reasonable.
 4. Associate state boundaries
 5. Addressing and scoping
 6. Test harness
-7. Message semantics
-8. Serializable build specs
-9. Lifecycle hooks
-10. Runtime scheduling
+7. Event interest and filtering
+8. Message semantics
+9. Serializable build specs
+10. Lifecycle hooks
+11. Runtime scheduling
 
 ## Whiteboard
 
 | ID | Topic | Status | Priority | Current posture | Discussion record |
 | --- | --- | --- | --- | --- | --- |
 | ADR-0001 | Runtime Cycle | Decided | P1 | Accepted with changes: castles may optionally provide `reconcile_fn`; dirty castles reconcile before associate projection. | [Runtime Cycle](decisions/ADR-0001-runtime-cycle.md) |
-| ADR-0002 | Castle Hierarchy | Open | P1 | Use `parent_castle` and `slot` to attach built castles into explicit parent/child structure. | [Castle Hierarchy](decisions/ADR-0002-castle-hierarchy.md) |
+| ADR-0002 | Castle Hierarchy | Decided | P1 | Accepted: parent/child castles attach through named slots, and visible children may mount a root associate into parent UI. | [Castle Hierarchy](decisions/ADR-0002-castle-hierarchy.md) |
 | ADR-0003 | Replacement And Dynamic Rebuild | Open | P1 | Generalize teardown/build pieces into slot replacement and subtree lifecycle operations. | [Replacement And Dynamic Rebuild](decisions/ADR-0003-replacement-dynamic-rebuild.md) |
 | ADR-0004 | Associate State Boundaries | Open | P2 | Split associate data into desired, observed, and private state before the single `data` bag gets muddy. | [Associate State Boundaries](decisions/ADR-0004-associate-state-boundaries.md) |
 | ADR-0005 | Addressing And Scoping | Open | P2 | Prefer ids internally, names locally, and paths/global addresses at boundaries. | [Addressing And Scoping](decisions/ADR-0005-addressing-scoping.md) |
@@ -40,15 +41,9 @@ review it in, and what current posture seems reasonable.
 | ADR-0008 | Lifecycle Hooks | Deferred | P4 | Setup/project/destroy is enough for now; revisit when associates own timers, watchers, processes, or global bindings. | [Lifecycle Hooks](decisions/ADR-0008-lifecycle-hooks.md) |
 | ADR-0009 | Runtime Scheduling | Deferred | P4 | Keep fixed polling while the machine is still being made visible. | [Runtime Scheduling](decisions/ADR-0009-runtime-scheduling.md) |
 | ADR-0010 | Test Harness | Open | P2 | Add fake-associate runtime tests soon so invariants guide the next architecture changes. | [Test Harness](decisions/ADR-0010-test-harness.md) |
+| ADR-0011 | Event Interest And Filtering | Open | P2 | As widget coverage grows, associates/castles need a way to declare which raw or semantic events they care about. | [Event Interest And Filtering](decisions/ADR-0011-event-interest-filtering.md) |
 
 ## Next Review Questions
-
-### Castle Hierarchy
-
-- Is `slot` just a name in `parent_castle["children"]`, or does it become a
-  richer slot record?
-- Does parent/child attachment happen before or after activation?
-- Which routes are implied by parent/child structure, if any?
 
 ### Replacement And Dynamic Rebuild
 
@@ -64,7 +59,7 @@ review it in, and what current posture seems reasonable.
 
 ### Addressing And Scoping
 
-- What are the minimum address forms needed before child castles exist?
+- What are the minimum address forms needed beyond parent/child slots?
 - Are global exports enough for out-of-build addressing right now?
 - When should path syntax become explicit?
 
@@ -73,3 +68,11 @@ review it in, and what current posture seems reasonable.
 - Can the runtime be exercised with fake associate types and no Tk root?
 - Which invariants should become tests before hierarchy/replacement work?
 - Should tests live beside `examples` or under a new test directory?
+
+### Event Interest And Filtering
+
+- Should event interest be declared on associate specs, castle specs, route
+  specs, or some combination?
+- Should filtering happen before message creation, before route delivery, or at
+  castle handling time?
+- How should default event interest work for simple demos?

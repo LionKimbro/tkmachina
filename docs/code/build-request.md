@@ -117,17 +117,22 @@ same template reusable. For example:
 
 ### `parent_castle`
 
-Reserved parent castle reference.
+Optional parent castle reference.
 
-The current demo stores this on the request but does not use it yet. It is
-intended for future nested or parent-owned builds.
+When provided, the built castle is attached into the parent castle's
+`children` mapping. `slot` must also be provided.
 
 ### `slot`
 
-Reserved slot reference.
+Optional parent slot name.
 
-The current demo stores this on the request but does not use it yet. It is
-intended for future slot mounting or replacement behavior.
+When `parent_castle` is provided, `slot` names where the new castle is attached:
+
+```python
+parent_castle["children"][slot] = child_castle_id
+child_castle["parent"] = parent_castle_id
+child_castle["slot"] = slot
+```
 
 ### `activate_when_complete`
 
@@ -155,6 +160,7 @@ Current top-level template result:
     "state": {},
     "handle_fn": handle_demo_castle_message,
     "reconcile_fn": reconcile_demo_castle,
+    "child_castles": [],
     "exports": [],
     "routes": [],
     "associates": [],
@@ -207,6 +213,40 @@ before associate projection, but only for dirty castles that provide a
 `reconcile_fn`.
 
 Headless and service castles may omit it.
+
+### `child_castles`
+
+Optional list of child castle specs to build inside this castle.
+
+Current Python-only child declaration shape:
+
+```python
+{
+    "kind": "child_castle_spec",
+    "slot": "trace_log",
+    "template_fn": trace_log_castle_template,
+    "build_context": {},
+    "mount": {
+        "parent_associate": "main_window",
+        "grid": {
+            "row": 3,
+            "column": 0,
+            "sticky": "ew",
+        },
+    },
+}
+```
+
+Fields:
+
+- `kind`: usually `"child_castle_spec"`
+- `slot`: local slot name in the parent castle's `children` mapping
+- `template_fn`: child template function to instantiate
+- `build_context`: optional context passed to the child template
+- `mount`: optional visual mount for the child's root associate
+
+The `mount` section is only needed for visible child castles. Headless child
+castles can omit it.
 
 ### `exports`
 
@@ -354,7 +394,6 @@ castle `inbox`. Template `routes` are for additional requested topology.
 The current request/template shape does not yet support:
 
 - multiple castle specs in one request
-- used `parent_castle` or `slot` behavior
 - non-castle global exports
 - conflict policies other than failing duplicate global exports
 - schema validation for every `kind` field

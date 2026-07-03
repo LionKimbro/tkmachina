@@ -57,6 +57,7 @@ The current runtime expects the template to return one castle spec:
     },
     "handle_fn": handle_demo_castle_message,
     "reconcile_fn": reconcile_demo_castle,
+    "child_castles": [],
     "exports": [],
     "routes": [],
     "associates": [],
@@ -144,6 +145,49 @@ state, or do nothing.
 
 Headless and service castles do not need associates and do not need a
 `reconcile_fn`.
+
+### `child_castles`
+
+Optional list of child castle declarations.
+
+Child castles are built as runtime participants in their own right, then
+attached into the parent castle's `children` mapping by slot name.
+
+Current Python-only shape:
+
+```python
+"child_castles": [
+    {
+        "kind": "child_castle_spec",
+        "slot": "trace_log",
+        "template_fn": trace_log_castle_template,
+        "build_context": {
+            "trace_wraplength": 400,
+        },
+        "mount": {
+            "parent_associate": "main_window",
+            "grid": {
+                "row": 3,
+                "column": 0,
+                "sticky": "ew",
+                "pady": (14, 0),
+            },
+        },
+    },
+]
+```
+
+Child declaration fields:
+
+- `kind`: usually `"child_castle_spec"`
+- `slot`: name used in the parent castle's `children` mapping
+- `template_fn`: child template function to instantiate
+- `build_context`: optional context passed to the child template
+- `mount`: optional visual mount for the child's root associate
+
+Visible child castles should provide one root associate. The mount places that
+root associate into a parent associate's layout region. Headless child castles
+can omit `mount`.
 
 ### `exports`
 
@@ -515,11 +559,10 @@ reuses them.
 
 ## Current Limits
 
-Current templates describe one top-level castle. They do not yet support:
+Current templates describe one top-level castle with optional child castles.
+They do not yet support:
 
 - multiple castle specs in one template result
-- child castle specs
-- slot declarations
 - non-castle global exports
 - route endpoints by runtime id
 - schema validation for every `kind` field

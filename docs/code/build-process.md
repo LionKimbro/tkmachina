@@ -32,9 +32,12 @@ participants.
 
 ## Scope
 
-The current build process supports a small single-castle demo:
+The current build process supports a small castle hierarchy demo:
 
 - one top-level castle spec
+- child castle specs declared by the top-level castle
+- parent/slot attachment between castles
+- optional visual mounting of a child castle's root associate
 - nested associate specs
 - parent-before-child associate construction
 - Tk widget creation through associate type setup functions
@@ -42,8 +45,9 @@ The current build process supports a small single-castle demo:
 - default routes from every associate outbox to the host castle inbox
 - activation of castles, associates, and routes
 
-It does not yet support multiple castles in one template, child castle slots,
-destroy/rebuild reconciliation, validation, or general route declarations.
+It does not yet support multiple sibling top-level castles in one template,
+destroy/rebuild reconciliation, validation, or a final serializable child
+template reference format.
 
 ## Main Entry Point
 
@@ -72,6 +76,8 @@ stores an error string.
     "kind": "active_build",
     "request": build_request,
     "spec": None,
+    "castle_specs": {},
+    "castle_mounts": {},
     "castle_ids": [],
     "associate_ids": [],
     "route_ids": [],
@@ -83,16 +89,14 @@ The nested `build_request` is created by `make_build_request(...)` and contains:
 
 - `kind`
 - `id`
-- `name`
 - `template_fn`
 - `build_context`
 - `parent_castle`
 - `slot`
 - `activate_when_complete`
 
-Only `template_fn`, `build_context`, and `activate_when_complete` have direct
-behavior in the current build path. `parent_castle` and `slot` are carried but
-not yet used.
+`template_fn`, `build_context`, `parent_castle`, `slot`, and
+`activate_when_complete` have direct behavior in the current build path.
 
 ## Key Data Structures
 
@@ -241,23 +245,35 @@ request["template_fn"](request["build_context"])
 
 The returned spec is stored in `build["spec"]`.
 
-In the current demo, `demo_template(build_context)` returns a castle spec with
-nested associate specs. The top-level associate is `main_window`, and its
-children include `priority_button`, `count_label`, `size_label`, `trace_label`,
-and `reset_button`.
+In the current demo, `demo_template(build_context)` returns a parent castle spec
+with a child `trace_log_castle` declaration and nested associate specs. The
+parent's top-level associate is `main_window`, and its children include
+`priority_button`, `count_label`, `size_label`, and `reset_button`.
 
 ### 5. Allocate castle shell
 
-`allocate_castle_shells(build)` reads `build["spec"]`, creates one castle
-record, registers it in `RT.castles`, and records the ID in
-`build["castle_ids"]`.
+`allocate_castle_shells(build)` reads `build["spec"]`, creates the parent
+castle record, recursively expands declared child castle templates, registers
+castle records in `RT.castles`, and records their IDs in `build["castle_ids"]`.
 
-The castle is inactive at this point.
+If a castle is built into a parent slot, the relationship is recorded both
+ways:
+
+```python
+parent_castle["children"][slot] = child_castle_id
+child_castle["parent"] = parent_castle_id
+child_castle["slot"] = slot
+```
+
+Castles are inactive at this point.
 
 ### 6. Allocate associate shells
 
-`allocate_associate_shells(build)` walks the top-level `spec["associates"]`
-list. For each associate spec, it calls `allocate_associate_shell(...)`.
+`allocate_associate_shells(build)` walks each built castle's `associates` list.
+For each associate spec, it calls `allocate_associate_shell(...)`.
+
+If a child castle has a visual mount, its single root associate is mounted under
+the requested parent associate and receives the mount's grid options.
 
 `allocate_associate_shell(...)` is recursive. It allocates a shell for the
 current associate, then recursively allocates shells for any child specs in
@@ -313,16 +329,8 @@ drains each associate's `outbox` into the host castle's `inbox`.
 
 ### 10. Append extra routes
 
-`append_extra_routes(build)` currently only checks whether `build["spec"]`
-contains `routes`.
-
-If extra routes are present, it appends a trace line:
-
-```text
-TODO: extra template routes are not implemented in this demo
-```
-
-No extra route data is currently interpreted.
+`append_extra_routes(build)` walks each built castle spec and materializes its
+declared route specs.
 
 ### 11. Activate
 
@@ -555,19 +563,19 @@ That may be fine for this Python experiment, but it is not a pure serializable
 spec. A future design may need a registry lookup by symbolic type name instead
 of embedding function objects.
 
-### Only One Castle Is Supported
+### Castle Hierarchy Is Minimal
 
-`allocate_castle_shells(build)` creates exactly one castle from the top-level
-spec. `allocate_associate_shells(build)` assumes `build["castle_ids"][0]`.
+`allocate_castle_shells(build)` supports one top-level castle and recursive
+child castle declarations.
 
-Child castles, slots, and multi-castle build specs are not implemented.
+Multiple sibling top-level castle specs are not implemented.
 
-### `parent_castle` And `slot` Are Unused
+### `parent_castle` And `slot`
 
-Build requests carry `parent_castle` and `slot`, but the build process does not
-currently interpret them.
+Build requests can carry `parent_castle` and `slot`. If `parent_castle` is
+provided, the built root castle is attached into that parent slot.
 
-Their intended role is still provisional.
+The current slot model is a named entry in `parent_castle["children"]`.
 
 ### Build Is Mostly Synchronous
 
@@ -576,13 +584,12 @@ each build request to completion immediately inside one runtime tick.
 
 There is no incremental multi-tick build progression yet.
 
-### Failure Cleanup Is Incomplete
+### Failure Cleanup Is Basic
 
 If a build phase fails after some records or widgets have already been created,
-the build is moved to `faulty_builds`, but there is no targeted rollback of the
-partial records/widgets from that failed build.
-
-This is a significant future runtime concern.
+the runtime revokes build-created global exports, destroys build-created
+associate widgets, removes build-created routes, and unregisters build-created
+associates and castles.
 
 ### Route Semantics Are Minimal
 
@@ -591,11 +598,6 @@ associates that do not emit messages in the current demo.
 
 This is simple and harmless for now, but the future design may distinguish
 emitting associates from non-emitting associates.
-
-### Extra Routes Are Not Implemented
-
-`append_extra_routes(build)` only records a TODO trace line if extra routes are
-present. It does not validate or append route specs.
 
 ### Validation Is Absent
 

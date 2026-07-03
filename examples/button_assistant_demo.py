@@ -25,18 +25,22 @@ def demo_template(build_context):
         },
         "handle_fn": handle_demo_castle_message,
         "reconcile_fn": reconcile_demo_castle,
-        "routes": [
+        "child_castles": [
             {
-                "kind": "route_spec",
-                "from": {
-                    "kind": "global_castle",
-                    "name": rt.TRACE_CASTLE,
-                    "box": "outbox",
+                "kind": "child_castle_spec",
+                "slot": "trace_log",
+                "template_fn": trace_log_castle_template,
+                "build_context": {
+                    "trace_wraplength": build_context.get("trace_wraplength", 380),
                 },
-                "to": {
-                    "kind": "castle",
-                    "name": "demo_castle",
-                    "box": "inbox",
+                "mount": {
+                    "parent_associate": "main_window",
+                    "grid": {
+                        "row": 3,
+                        "column": 0,
+                        "sticky": "ew",
+                        "pady": (14, 0),
+                    },
                 },
             },
         ],
@@ -94,21 +98,6 @@ def demo_template(build_context):
                     },
                     {
                         "kind": "associate_spec",
-                        "name": "trace_label",
-                        "associate_type": LABEL_ASSOCIATE_TYPE,
-                        "data": {
-                            "text": "Recent RT trace: waiting",
-                            "wraplength": build_context.get("trace_wraplength", 380),
-                        },
-                        "grid": {
-                            "row": 3,
-                            "column": 0,
-                            "sticky": "ew",
-                            "pady": (14, 0),
-                        },
-                    },
-                    {
-                        "kind": "associate_spec",
                         "name": "reset_button",
                         "associate_type": BUTTON_ASSOCIATE_TYPE,
                         "data": {
@@ -123,6 +112,44 @@ def demo_template(build_context):
                         },
                     },
                 ],
+            },
+        ],
+    }
+
+
+def trace_log_castle_template(build_context):
+    return {
+        "kind": "castle_spec",
+        "name": "trace_log_castle",
+        "state": {
+            "trace_version": 0,
+        },
+        "handle_fn": handle_trace_log_castle_message,
+        "reconcile_fn": reconcile_trace_log_castle,
+        "routes": [
+            {
+                "kind": "route_spec",
+                "from": {
+                    "kind": "global_castle",
+                    "name": rt.TRACE_CASTLE,
+                    "box": "outbox",
+                },
+                "to": {
+                    "kind": "castle",
+                    "name": "trace_log_castle",
+                    "box": "inbox",
+                },
+            },
+        ],
+        "associates": [
+            {
+                "kind": "associate_spec",
+                "name": "trace_label",
+                "associate_type": LABEL_ASSOCIATE_TYPE,
+                "data": {
+                    "text": "Recent RT trace: waiting",
+                    "wraplength": build_context.get("trace_wraplength", 380),
+                },
             },
         ],
     }
@@ -159,7 +186,6 @@ def reconcile_demo_castle(castle):
     priority_button = rt.get_associate(castle, "priority_button")
     count_label = rt.get_associate(castle, "count_label")
     size_label = rt.get_associate(castle, "size_label")
-    trace_label = rt.get_associate(castle, "trace_label")
 
     rt.target_associate(priority_button)
     rt.set_data("enabled", state["button_enabled"])
@@ -181,6 +207,17 @@ def reconcile_demo_castle(castle):
             f"Window frame: {state['window_width']} x {state['window_height']}",
         )
 
+
+def handle_trace_log_castle_message(castle, message):
+    if message["type"] == "trace_changed":
+        castle["state"]["trace_version"] = message["payload"]["version"]
+        return rt.HANDLED_DIRTY
+
+    return rt.IGNORED
+
+
+def reconcile_trace_log_castle(castle):
+    trace_label = rt.get_associate(castle, "trace_label")
     rt.target_associate(trace_label)
     recent_trace = rt.get_trace_entries()[-20:]
     if recent_trace:

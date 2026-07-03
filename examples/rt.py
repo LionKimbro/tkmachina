@@ -153,6 +153,8 @@ def process_incoming_builds():
             "kind": "active_build",
             "request": request,
             "spec": None,
+            "castle_specs": {},
+            "castle_mounts": {},
             "castle_ids": [],
             "associate_ids": [],
             "route_ids": [],
@@ -198,12 +200,37 @@ def expand_template(build):
 
 
 def allocate_castle_shells(build):
-    spec = build["spec"]
+    request = build["request"]
+    parent_castle = request.get("parent_castle")
+    parent_castle_id = None
+    if parent_castle is not None:
+        parent_castle_id = get_castle_id(parent_castle)
+        if request.get("slot") is None:
+            raise ValueError("slot is required when parent_castle is provided")
+
+    allocate_castle_shell(
+        build,
+        build["spec"],
+        parent_castle_id=parent_castle_id,
+        slot=request.get("slot"),
+    )
+
+
+def get_castle_id(castle_or_id):
+    if isinstance(castle_or_id, str):
+        return castle_or_id
+
+    return castle_or_id["id"]
+
+
+def allocate_castle_shell(build, spec, parent_castle_id=None, slot=None, mount=None):
     castle_id = make_id("castle")
     castle = {
         "kind": "castle",
         "id": castle_id,
         "name": spec["name"],
+        "parent": parent_castle_id,
+        "slot": slot,
         "state": dict(spec.get("state", {})),
         "associates": {},
         "children": {},
@@ -214,12 +241,40 @@ def allocate_castle_shells(build):
         "reconcile_fn": spec.get("reconcile_fn"),
     }
     castles[castle_id] = castle
+    build["castle_specs"][castle_id] = spec
+    if mount is not None:
+        build["castle_mounts"][castle_id] = mount
     build["castle_ids"].append(castle_id)
     trace.append(f"phase: allocated castle shell {castle['name']}")
 
+    if parent_castle_id is not None:
+        parent_castle = castles[parent_castle_id]
+        if slot in parent_castle["children"]:
+            raise ValueError(f"parent slot already has a child castle: {slot}")
+        parent_castle["children"][slot] = castle_id
+        trace.append(
+            f"phase: mounted child castle {castle['name']} in slot {slot}"
+        )
+
+    for child_spec in spec.get("child_castles", []):
+        child_template_fn = child_spec["template_fn"]
+        child_context = child_spec.get("build_context", {})
+        child_castle_spec = child_template_fn(child_context)
+        allocate_castle_shell(
+            build,
+            child_castle_spec,
+            parent_castle_id=castle_id,
+            slot=child_spec["slot"],
+            mount=child_spec.get("mount"),
+        )
+
 
 def register_global_exports(build):
-    export_specs = build["spec"].get("exports", [])
+    export_specs = []
+    for castle_id in build["castle_ids"]:
+        for export_spec in build["castle_specs"][castle_id].get("exports", []):
+            export_specs.append(export_spec)
+
     export_names = set()
 
     for export_spec in export_specs:
@@ -254,15 +309,55 @@ def resolve_export_target(build, target_spec):
 
 
 def allocate_associate_shells(build):
-    spec = build["spec"]
-    castle_id = build["castle_ids"][0]
+    for castle_id in build["castle_ids"]:
+        allocate_castle_associate_shells(build, castle_id)
+
+
+def allocate_castle_associate_shells(build, castle_id):
+    spec = build["castle_specs"][castle_id]
     castle = castles[castle_id]
+    associate_specs = spec.get("associates", [])
+    mount = build["castle_mounts"].get(castle_id)
 
-    for associate_spec in spec.get("associates", []):
-        allocate_associate_shell(build, castle, castle_id, associate_spec, None)
+    parent_id = None
+    grid_override = None
+    if mount is not None:
+        if len(associate_specs) != 1:
+            raise ValueError(
+                f"mounted castle must have exactly one root associate: {castle['name']}"
+            )
+        parent_id = resolve_mount_parent_associate(castle, mount)
+        grid_override = mount.get("grid", {})
+
+    for associate_spec in associate_specs:
+        allocate_associate_shell(
+            build,
+            castle,
+            castle_id,
+            associate_spec,
+            parent_id,
+            grid_override=grid_override,
+        )
 
 
-def allocate_associate_shell(build, castle, castle_id, associate_spec, parent_id):
+def resolve_mount_parent_associate(castle, mount):
+    parent_castle_id = castle["parent"]
+    if parent_castle_id is None:
+        raise ValueError(f"mounted castle has no parent castle: {castle['name']}")
+
+    parent_castle = castles[parent_castle_id]
+    parent_associate_name = mount["parent_associate"]
+    return parent_castle["associates"][parent_associate_name]
+
+
+def allocate_associate_shell(
+    build,
+    castle,
+    castle_id,
+    associate_spec,
+    parent_id,
+    grid_override=None,
+):
     associate_id = make_id("associate")
     associate = {
         "kind": "associate",
@@ -276,7 +371,9 @@ def allocate_associate_shell(build, castle, castle_id, associate_spec, parent_id
         "tk": None,
         "child_tk_parent": None,
         "layout": dict(associate_spec.get("layout", {})),
-        "grid": dict(associate_spec.get("grid", {})),
+        "grid": dict(
+            grid_override if grid_override is not None else associate_spec.get("grid", {})
+        ),
         "outbox": [],
         "active": False,
     }
@@ -337,8 +434,8 @@ def apply_layout(build):
 
 
 def wire_default_routes(build):
-    castle_id = build["castle_ids"][0]
     for associate_id in build["associate_ids"]:
+        associate = associates[associate_id]
         route_id = make_id("route")
         route = {
             "kind": "route",
@@ -347,7 +444,7 @@ def wire_default_routes(build):
             "from_id": associate_id,
             "from_box": "outbox",
             "to_kind": "castle",
-            "to_id": castle_id,
+            "to_id": associate["host_castle"],
             "to_box": "inbox",
             "active": False,
         }
@@ -358,32 +455,33 @@ def wire_default_routes(build):
 
 
 def append_extra_routes(build):
-    route_specs = build["spec"].get("routes", [])
-    for route_spec in route_specs:
-        from_kind, from_id, from_box = resolve_route_endpoint(
-            build,
-            route_spec["from"],
-        )
-        to_kind, to_id, to_box = resolve_route_endpoint(
-            build,
-            route_spec["to"],
-        )
+    for castle_id in build["castle_ids"]:
+        route_specs = build["castle_specs"][castle_id].get("routes", [])
+        for route_spec in route_specs:
+            from_kind, from_id, from_box = resolve_route_endpoint(
+                build,
+                route_spec["from"],
+            )
+            to_kind, to_id, to_box = resolve_route_endpoint(
+                build,
+                route_spec["to"],
+            )
 
-        route_id = make_id("route")
-        route = {
-            "kind": "route",
-            "id": route_id,
-            "from_kind": from_kind,
-            "from_id": from_id,
-            "from_box": from_box,
-            "to_kind": to_kind,
-            "to_id": to_id,
-            "to_box": to_box,
-            "active": False,
-        }
-        routes.append(route)
-        build["route_ids"].append(route_id)
-        trace.append(f"phase: appended template route {route_id}")
+            route_id = make_id("route")
+            route = {
+                "kind": "route",
+                "id": route_id,
+                "from_kind": from_kind,
+                "from_id": from_id,
+                "from_box": from_box,
+                "to_kind": to_kind,
+                "to_id": to_id,
+                "to_box": to_box,
+                "active": False,
+            }
+            routes.append(route)
+            build["route_ids"].append(route_id)
+            trace.append(f"phase: appended template route {route_id}")
 
 
 def resolve_route_endpoint(build, endpoint_spec):
@@ -618,6 +716,8 @@ def unregister_build_records(build):
 
     build["route_ids"].clear()
     build["associate_ids"].clear()
+    build["castle_specs"].clear()
+    build["castle_mounts"].clear()
     build["castle_ids"].clear()
 
 
