@@ -16,12 +16,17 @@ castles = {}
 associates = {}
 routes = []
 trace = []
+dirty_castles = set()
 dirty_associates = set()
 current_target_associate = None
 tk_master = None
 global_castles = {}
 
 TRACE_CASTLE = "global_trace"
+
+IGNORED = "ignored"
+HANDLED = "handled"
+HANDLED_DIRTY = "handled_dirty"
 
 _next_ids = {
     "build": 0,
@@ -40,6 +45,7 @@ def reset():
     associates.clear()
     routes.clear()
     trace.clear()
+    dirty_castles.clear()
     dirty_associates.clear()
     global_castles.clear()
     global current_target_associate, tk_master
@@ -96,6 +102,7 @@ def setup_global_castles():
         "outbox": [],
         "active": True,
         "handle_fn": None,
+        "reconcile_fn": None,
         "global": True,
         "headless": True,
     }
@@ -204,6 +211,7 @@ def allocate_castle_shells(build):
         "outbox": [],
         "active": False,
         "handle_fn": spec.get("handle_fn"),
+        "reconcile_fn": spec.get("reconcile_fn"),
     }
     castles[castle_id] = castle
     build["castle_ids"].append(castle_id)
@@ -453,6 +461,13 @@ def set_data(key, value):
     return True
 
 
+def mark_castle_dirty(castle_or_id):
+    if isinstance(castle_or_id, str):
+        dirty_castles.add(castle_or_id)
+    else:
+        dirty_castles.add(castle_or_id["id"])
+
+
 def mark_dirty(associate_or_id):
     if isinstance(associate_or_id, str):
         dirty_associates.add(associate_or_id)
@@ -511,7 +526,28 @@ def process_castle_messages():
 
         while castle["inbox"]:
             message = castle["inbox"].pop(0)
-            handle_fn(castle, message)
+            result = handle_fn(castle, message)
+            if result is None:
+                result = HANDLED_DIRTY
+            if result == HANDLED_DIRTY:
+                mark_castle_dirty(castle)
+            elif result not in (IGNORED, HANDLED):
+                raise ValueError(f"unknown castle handler result: {result}")
+
+
+def reconcile_dirty_castles():
+    while dirty_castles:
+        castle_id = dirty_castles.pop()
+        castle = castles.get(castle_id)
+        if castle is None or not castle["active"]:
+            continue
+
+        reconcile_fn = castle.get("reconcile_fn")
+        if reconcile_fn is None:
+            continue
+
+        reconcile_fn(castle)
+        trace.append(f"reconciled {castle['name']}")
 
 
 def project_dirty_associates():
@@ -530,6 +566,7 @@ def runtime_tick():
     process_incoming_builds()
     deliver_messages()
     process_castle_messages()
+    reconcile_dirty_castles()
     project_dirty_associates()
     tk_master.after(50, runtime_tick)
 
@@ -576,6 +613,7 @@ def unregister_build_records(build):
         associates.pop(associate_id, None)
 
     for castle_id in build.get("castle_ids", []):
+        dirty_castles.discard(castle_id)
         castles.pop(castle_id, None)
 
     build["route_ids"].clear()
@@ -625,6 +663,7 @@ def deactivate_all():
 def clear_runtime_queues():
     incoming_builds.clear()
     active_builds.clear()
+    dirty_castles.clear()
     dirty_associates.clear()
 
     for castle in castles.values():

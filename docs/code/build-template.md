@@ -56,6 +56,7 @@ The current runtime expects the template to return one castle spec:
         "press_count": 0,
     },
     "handle_fn": handle_demo_castle_message,
+    "reconcile_fn": reconcile_demo_castle,
     "exports": [],
     "routes": [],
     "associates": [],
@@ -112,7 +113,37 @@ handle_fn(castle, message)
 ```
 
 It may inspect and mutate `castle["state"]`, read messages, call runtime helper
-functions, and update associate desired data.
+functions, and emit additional messages.
+
+The handler should return one of:
+
+- `rt.IGNORED`
+- `rt.HANDLED`
+- `rt.HANDLED_DIRTY`
+
+Only `rt.HANDLED_DIRTY` marks the castle dirty for reconciliation. `None` is
+treated as `rt.HANDLED_DIRTY` for backward compatibility.
+
+### `reconcile_fn`
+
+Optional post-message reconciliation function for the castle.
+
+The function receives:
+
+```python
+reconcile_fn(castle)
+```
+
+When an active castle handles messages, the runtime marks it dirty. After castle
+message handling, dirty castles that provide `reconcile_fn` are reconciled
+before dirty associates are projected.
+
+This function is not only for view synchronization. It may reconcile derived
+associate state, emit derived messages, update child structures, validate
+state, or do nothing.
+
+Headless and service castles do not need associates and do not need a
+`reconcile_fn`.
 
 ### `exports`
 
@@ -492,4 +523,3 @@ Current templates describe one top-level castle. They do not yet support:
 - non-castle global exports
 - route endpoints by runtime id
 - schema validation for every `kind` field
-

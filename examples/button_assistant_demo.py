@@ -24,6 +24,7 @@ def demo_template(build_context):
             "window_height": None,
         },
         "handle_fn": handle_demo_castle_message,
+        "reconcile_fn": reconcile_demo_castle,
         "routes": [
             {
                 "kind": "route_spec",
@@ -135,12 +136,12 @@ def handle_demo_castle_message(castle, message):
         count = castle["state"]["press_count"]
         castle["state"]["button_enabled"] = count < 5
         rt.add_trace(f"{castle_label} handled priority_button; count is now {count}")
-        sync_demo_castle_view_state(castle)
+        return rt.HANDLED_DIRTY
     elif message["type"] == "button_pressed" and message["origin"] == "reset_button":
         castle["state"]["press_count"] = 0
         castle["state"]["button_enabled"] = True
         rt.add_trace(f"{castle_label} handled reset_button")
-        sync_demo_castle_view_state(castle)
+        return rt.HANDLED_DIRTY
     elif message["type"] == "window_resized":
         castle["state"]["window_width"] = message["payload"]["width"]
         castle["state"]["window_height"] = message["payload"]["height"]
@@ -148,12 +149,12 @@ def handle_demo_castle_message(castle, message):
             f"{castle_label} handled window_resized; "
             f"size is {message['payload']['width']}x{message['payload']['height']}"
         )
-        sync_demo_castle_view_state(castle)
-    elif message["type"] == "trace_changed":
-        sync_demo_castle_view_state(castle)
+        return rt.HANDLED_DIRTY
+
+    return rt.IGNORED
 
 
-def sync_demo_castle_view_state(castle):
+def reconcile_demo_castle(castle):
     state = castle["state"]
     priority_button = rt.get_associate(castle, "priority_button")
     count_label = rt.get_associate(castle, "count_label")

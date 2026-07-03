@@ -154,6 +154,7 @@ Current top-level template result:
     "name": "demo_castle",
     "state": {},
     "handle_fn": handle_demo_castle_message,
+    "reconcile_fn": reconcile_demo_castle,
     "exports": [],
     "routes": [],
     "associates": [],
@@ -187,6 +188,25 @@ The runtime copies this into the castle shell.
 Message handler for the minted castle.
 
 The handler receives `(castle, message)`.
+
+The handler should return one of:
+
+- `rt.IGNORED`
+- `rt.HANDLED`
+- `rt.HANDLED_DIRTY`
+
+Only `rt.HANDLED_DIRTY` marks the castle dirty for reconciliation. `None` is
+treated as `rt.HANDLED_DIRTY` for backward compatibility.
+
+### `reconcile_fn`
+
+Optional post-message reconciliation function for the minted castle.
+
+The reconciler receives `(castle)`. It runs after castle message handling and
+before associate projection, but only for dirty castles that provide a
+`reconcile_fn`.
+
+Headless and service castles may omit it.
 
 ### `exports`
 
@@ -339,4 +359,3 @@ The current request/template shape does not yet support:
 - conflict policies other than failing duplicate global exports
 - schema validation for every `kind` field
 - route endpoints by runtime id
-
