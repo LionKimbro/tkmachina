@@ -19,6 +19,9 @@ trace = []
 dirty_associates = set()
 current_target_associate = None
 tk_master = None
+global_castles = {}
+
+TRACE_CASTLE = "global_trace"
 
 _next_ids = {
     "build": 0,
@@ -38,6 +41,7 @@ def reset():
     routes.clear()
     trace.clear()
     dirty_associates.clear()
+    global_castles.clear()
     global current_target_associate, tk_master
     current_target_associate = None
     tk_master = None
@@ -73,6 +77,68 @@ def make_build_request(
 def submit_build_request(build_request):
     incoming_builds.append(build_request)
     trace.append(f"submitted build {build_request['name']}")
+
+
+def setup_global_castles():
+    if TRACE_CASTLE in global_castles:
+        return
+
+    castle_id = make_id("castle")
+    castle = {
+        "kind": "castle",
+        "id": castle_id,
+        "name": TRACE_CASTLE,
+        "state": {
+            "entries": [],
+            "version": 0,
+        },
+        "associates": {},
+        "children": {},
+        "inbox": [],
+        "outbox": [],
+        "active": True,
+        "handle_fn": None,
+        "global": True,
+        "headless": True,
+    }
+    castles[castle_id] = castle
+    global_castles[TRACE_CASTLE] = castle_id
+    trace.append(f"setup global castle {TRACE_CASTLE}")
+
+
+def get_global_castle(name):
+    castle_id = global_castles[name]
+    return castles[castle_id]
+
+
+def add_trace(text):
+    if TRACE_CASTLE not in global_castles:
+        setup_global_castles()
+
+    trace_castle = get_global_castle(TRACE_CASTLE)
+    trace_castle["state"]["entries"].append(text)
+    trace_castle["state"]["version"] += 1
+    version = trace_castle["state"]["version"]
+    trace_castle["outbox"].append(
+        {
+            "kind": "event",
+            "type": "trace_changed",
+            "origin": trace_castle["name"],
+            "emitter": trace_castle["name"],
+            "payload": {
+                "version": version,
+                "text": text,
+            },
+        }
+    )
+    trace.append(f"global trace appended version {version}")
+
+
+def get_trace_entries():
+    if TRACE_CASTLE not in global_castles:
+        return []
+
+    return list(get_global_castle(TRACE_CASTLE)["state"]["entries"])
 
 
 def process_incoming_builds():
@@ -243,7 +309,33 @@ def wire_default_routes(build):
         }
         routes.append(route)
         build["route_ids"].append(route_id)
+
+    wire_global_trace_route(build, castle_id)
     trace.append("phase: wired default associate-to-castle routes")
+
+
+def wire_global_trace_route(build, castle_id):
+    if TRACE_CASTLE not in global_castles:
+        return
+
+    trace_castle_id = global_castles[TRACE_CASTLE]
+    if trace_castle_id == castle_id:
+        return
+
+    route_id = make_id("route")
+    route = {
+        "kind": "route",
+        "id": route_id,
+        "from_kind": "castle",
+        "from_id": trace_castle_id,
+        "from_box": "outbox",
+        "to_kind": "castle",
+        "to_id": castle_id,
+        "to_box": "inbox",
+        "active": False,
+    }
+    routes.append(route)
+    build["route_ids"].append(route_id)
 
 
 def append_extra_routes(build):
@@ -303,22 +395,31 @@ def mark_castle_associate_dirty(castle, associate_name):
 
 
 def deliver_messages():
+    routes_by_source = {}
     for route in routes:
-        if not route["active"]:
-            continue
+        if route["active"]:
+            source_key = (route["from_kind"], route["from_id"], route["from_box"])
+            routes_by_source.setdefault(source_key, []).append(route)
 
-        source = get_route_endpoint(route["from_kind"], route["from_id"])
-        destination = get_route_endpoint(route["to_kind"], route["to_id"])
-        source_box = source[route["from_box"]]
-        destination_box = destination[route["to_box"]]
+    for source_key, source_routes in routes_by_source.items():
+        from_kind, from_id, from_box = source_key
+        source = get_route_endpoint(from_kind, from_id)
+        source_box = source[from_box]
+        messages = list(source_box)
+        source_box.clear()
 
-        while source_box:
-            message = source_box.pop(0)
-            destination_box.append(message)
-            trace.append(
-                f"delivered {message['type']} from "
-                f"{source['name']} to {destination['name']}"
-            )
+        for message in messages:
+            for route in source_routes:
+                destination = get_route_endpoint(route["to_kind"], route["to_id"])
+                destination_box = destination[route["to_box"]]
+                delivered_message = dict(message)
+                if isinstance(message.get("payload"), dict):
+                    delivered_message["payload"] = dict(message["payload"])
+                destination_box.append(delivered_message)
+                trace.append(
+                    f"delivered {message['type']} from "
+                    f"{source['name']} to {destination['name']}"
+                )
 
 
 def get_route_endpoint(kind, endpoint_id):
@@ -367,6 +468,7 @@ def setup_tk_bootstrap():
     global tk_master
     tk_master = tk.Tk()
     tk_master.withdraw()
+    setup_global_castles()
     return tk_master
 
 
@@ -430,6 +532,7 @@ def unregister_runtime_records():
     routes.clear()
     associates.clear()
     castles.clear()
+    global_castles.clear()
     completed_builds.clear()
     faulty_builds.clear()
 

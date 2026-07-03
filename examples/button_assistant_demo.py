@@ -113,24 +113,28 @@ def demo_template(build_context):
 
 
 def handle_demo_castle_message(castle, message):
+    castle_label = f"{castle['name']}[{castle['id']}]"
+
     if message["type"] == "button_pressed" and message["origin"] == "priority_button":
         castle["state"]["press_count"] += 1
         count = castle["state"]["press_count"]
         castle["state"]["button_enabled"] = count < 5
-        rt.trace.append(f"castle handled priority_button; count is now {count}")
+        rt.add_trace(f"{castle_label} handled priority_button; count is now {count}")
         sync_demo_castle_view_state(castle)
     elif message["type"] == "button_pressed" and message["origin"] == "reset_button":
         castle["state"]["press_count"] = 0
         castle["state"]["button_enabled"] = True
-        rt.trace.append("castle handled reset_button")
+        rt.add_trace(f"{castle_label} handled reset_button")
         sync_demo_castle_view_state(castle)
     elif message["type"] == "window_resized":
         castle["state"]["window_width"] = message["payload"]["width"]
         castle["state"]["window_height"] = message["payload"]["height"]
-        rt.trace.append(
-            "castle handled window_resized; "
+        rt.add_trace(
+            f"{castle_label} handled window_resized; "
             f"size is {message['payload']['width']}x{message['payload']['height']}"
         )
+        sync_demo_castle_view_state(castle)
+    elif message["type"] == "trace_changed":
         sync_demo_castle_view_state(castle)
 
 
@@ -162,7 +166,7 @@ def sync_demo_castle_view_state(castle):
         )
 
     rt.target_associate(trace_label)
-    recent_trace = rt.trace[-20:]
+    recent_trace = rt.get_trace_entries()[-20:]
     if recent_trace:
         rt.set_data(
             "text",
