@@ -24,6 +24,21 @@ def demo_template(build_context):
             "window_height": None,
         },
         "handle_fn": handle_demo_castle_message,
+        "routes": [
+            {
+                "kind": "route_spec",
+                "from": {
+                    "kind": "global_castle",
+                    "name": rt.TRACE_CASTLE,
+                    "box": "outbox",
+                },
+                "to": {
+                    "kind": "castle",
+                    "name": "demo_castle",
+                    "box": "inbox",
+                },
+            },
+        ],
         "associates": [
             {
                 "kind": "associate_spec",
@@ -179,16 +194,22 @@ def sync_demo_castle_view_state(castle):
 def main():
     rt.reset()
     rt.setup_tk_bootstrap()
-    build_request = rt.make_build_request(
-        name="demo",
-        template_fn=demo_template,
-        build_context={
-            "trace_wraplength": 400,
-        },
-        activate_when_complete=True,
+    rt.submit_build_request(
+        rt.make_build_request(
+            template_fn=demo_template,
+            build_context={
+                "trace_wraplength": 400,
+            },
+        )
     )
-    rt.submit_build_request(build_request)
-    rt.submit_build_request(build_request)
+    rt.submit_build_request(
+        rt.make_build_request(
+            template_fn=demo_template,
+            build_context={
+                "trace_wraplength": 400,
+            },
+        )
+    )
     rt.run()
 
 

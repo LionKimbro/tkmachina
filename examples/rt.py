@@ -55,7 +55,6 @@ def make_id(kind):
 
 
 def make_build_request(
-    name,
     template_fn,
     build_context=None,
     parent_castle=None,
@@ -65,7 +64,6 @@ def make_build_request(
     return {
         "kind": "build_request",
         "id": make_id("build"),
-        "name": name,
         "template_fn": template_fn,
         "build_context": build_context or {},
         "parent_castle": parent_castle,
@@ -76,7 +74,7 @@ def make_build_request(
 
 def submit_build_request(build_request):
     incoming_builds.append(build_request)
-    trace.append(f"submitted build {build_request['name']}")
+    trace.append(f"submitted build {build_request['id']}")
 
 
 def setup_global_castles():
@@ -151,29 +149,32 @@ def process_incoming_builds():
             "castle_ids": [],
             "associate_ids": [],
             "route_ids": [],
+            "global_export_names": [],
             "status": "active",
         }
         active_builds.append(build)
-        trace.append(f"started build {request['name']}")
+        trace.append(f"started build {request['id']}")
 
         try:
             process_build(build)
         except Exception as exc:
             build["status"] = "faulty"
             build["error"] = repr(exc)
+            cleanup_failed_build(build)
             active_builds.remove(build)
             faulty_builds.append(build)
-            trace.append(f"build {request['name']} failed: {exc}")
+            trace.append(f"build {request['id']} failed: {exc}")
         else:
             build["status"] = "completed"
             active_builds.remove(build)
             completed_builds.append(build)
-            trace.append(f"completed build {request['name']}")
+            trace.append(f"completed build {request['id']}")
 
 
 def process_build(build):
     expand_template(build)
     allocate_castle_shells(build)
+    register_global_exports(build)
     allocate_associate_shells(build)
     construct_widgets(build)
     apply_layout(build)
@@ -207,6 +208,41 @@ def allocate_castle_shells(build):
     castles[castle_id] = castle
     build["castle_ids"].append(castle_id)
     trace.append(f"phase: allocated castle shell {castle['name']}")
+
+
+def register_global_exports(build):
+    export_specs = build["spec"].get("exports", [])
+    export_names = set()
+
+    for export_spec in export_specs:
+        export_name = export_spec["name"]
+        if export_name in export_names:
+            raise ValueError(f"duplicate export in build spec: {export_name}")
+        if export_name in global_castles:
+            raise ValueError(f"global castle export already exists: {export_name}")
+
+        export_names.add(export_name)
+
+    for export_spec in export_specs:
+        export_name = export_spec["name"]
+        target_kind, target_id = resolve_export_target(build, export_spec["target"])
+        if target_kind != "castle":
+            raise ValueError(f"unsupported global export target kind: {target_kind}")
+
+        global_castles[export_name] = target_id
+        build["global_export_names"].append(export_name)
+        castles[target_id].setdefault("global_names", []).append(export_name)
+        trace.append(f"phase: exported castle {target_id} as {export_name}")
+
+
+def resolve_export_target(build, target_spec):
+    target_kind = target_spec["kind"]
+
+    if target_kind == "castle":
+        castle_id = find_built_castle_id(build, target_spec["name"])
+        return "castle", castle_id
+
+    raise ValueError(f"unknown export target spec kind: {target_kind}")
 
 
 def allocate_associate_shells(build):
@@ -310,37 +346,71 @@ def wire_default_routes(build):
         routes.append(route)
         build["route_ids"].append(route_id)
 
-    wire_global_trace_route(build, castle_id)
     trace.append("phase: wired default associate-to-castle routes")
 
 
-def wire_global_trace_route(build, castle_id):
-    if TRACE_CASTLE not in global_castles:
-        return
-
-    trace_castle_id = global_castles[TRACE_CASTLE]
-    if trace_castle_id == castle_id:
-        return
-
-    route_id = make_id("route")
-    route = {
-        "kind": "route",
-        "id": route_id,
-        "from_kind": "castle",
-        "from_id": trace_castle_id,
-        "from_box": "outbox",
-        "to_kind": "castle",
-        "to_id": castle_id,
-        "to_box": "inbox",
-        "active": False,
-    }
-    routes.append(route)
-    build["route_ids"].append(route_id)
-
-
 def append_extra_routes(build):
-    if build["spec"].get("routes"):
-        trace.append("TODO: extra template routes are not implemented in this demo")
+    route_specs = build["spec"].get("routes", [])
+    for route_spec in route_specs:
+        from_kind, from_id, from_box = resolve_route_endpoint(
+            build,
+            route_spec["from"],
+        )
+        to_kind, to_id, to_box = resolve_route_endpoint(
+            build,
+            route_spec["to"],
+        )
+
+        route_id = make_id("route")
+        route = {
+            "kind": "route",
+            "id": route_id,
+            "from_kind": from_kind,
+            "from_id": from_id,
+            "from_box": from_box,
+            "to_kind": to_kind,
+            "to_id": to_id,
+            "to_box": to_box,
+            "active": False,
+        }
+        routes.append(route)
+        build["route_ids"].append(route_id)
+        trace.append(f"phase: appended template route {route_id}")
+
+
+def resolve_route_endpoint(build, endpoint_spec):
+    endpoint_kind = endpoint_spec["kind"]
+    endpoint_box = endpoint_spec["box"]
+
+    if endpoint_kind == "global_castle":
+        castle_id = global_castles[endpoint_spec["name"]]
+        return "castle", castle_id, endpoint_box
+
+    if endpoint_kind == "castle":
+        castle_id = find_built_castle_id(build, endpoint_spec["name"])
+        return "castle", castle_id, endpoint_box
+
+    if endpoint_kind == "associate":
+        associate_id = find_built_associate_id(build, endpoint_spec["name"])
+        return "associate", associate_id, endpoint_box
+
+    raise ValueError(f"unknown route endpoint spec kind: {endpoint_kind}")
+
+
+def find_built_castle_id(build, castle_name):
+    for castle_id in build["castle_ids"]:
+        if castles[castle_id]["name"] == castle_name:
+            return castle_id
+
+    raise KeyError(f"built castle not found for route endpoint: {castle_name}")
+
+
+def find_built_associate_id(build, associate_name):
+    for associate_id in build["associate_ids"]:
+        if associates[associate_id]["name"] == associate_name:
+            return associate_id
+
+    raise KeyError(f"built associate not found for route endpoint: {associate_name}")
 
 
 def activate_build(build):
@@ -464,6 +534,55 @@ def runtime_tick():
     tk_master.after(50, runtime_tick)
 
 
+def cleanup_failed_build(build):
+    revoke_global_exports(build)
+    destroy_build_associate_widgets(build)
+    unregister_build_records(build)
+    trace.append(f"cleanup: removed failed build {build['request']['id']} records")
+
+
+def revoke_global_exports(build):
+    for export_name in build.get("global_export_names", []):
+        castle_id = global_castles.get(export_name)
+        if castle_id is not None:
+            castle = castles.get(castle_id)
+            if castle is not None and export_name in castle.get("global_names", []):
+                castle["global_names"].remove(export_name)
+
+        global_castles.pop(export_name, None)
+        trace.append(f"cleanup: revoked global export {export_name}")
+
+    build["global_export_names"].clear()
+
+
+def destroy_build_associate_widgets(build):
+    for associate_id in reversed(build.get("associate_ids", [])):
+        associate = associates.get(associate_id)
+        if associate is None:
+            continue
+
+        destroy_fn = associate["associate_type"].get("destroy_fn")
+        if destroy_fn is not None:
+            destroy_fn(associate)
+
+
+def unregister_build_records(build):
+    route_ids = set(build.get("route_ids", []))
+    if route_ids:
+        routes[:] = [route for route in routes if route["id"] not in route_ids]
+
+    for associate_id in build.get("associate_ids", []):
+        dirty_associates.discard(associate_id)
+        associates.pop(associate_id, None)
+
+    for castle_id in build.get("castle_ids", []):
+        castles.pop(castle_id, None)
+
+    build["route_ids"].clear()
+    build["associate_ids"].clear()
+    build["castle_ids"].clear()
+
+
 def setup_tk_bootstrap():
     global tk_master
     tk_master = tk.Tk()
@@ -484,6 +603,7 @@ def destroy_all():
     trace.append("destroy: begin")
     deactivate_all()
     clear_runtime_queues()
+    revoke_completed_global_exports()
     destroy_associate_widgets()
     unregister_runtime_records()
     trace.append("destroy: complete")
@@ -515,6 +635,13 @@ def clear_runtime_queues():
         associate["outbox"].clear()
 
     trace.append("destroy: cleared build, message, and dirty queues")
+
+
+def revoke_completed_global_exports():
+    for build in completed_builds:
+        revoke_global_exports(build)
+
+    trace.append("destroy: revoked completed build global exports")
 
 
 def destroy_associate_widgets():
