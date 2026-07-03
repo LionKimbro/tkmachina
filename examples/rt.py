@@ -5,6 +5,8 @@ RT is intentionally a module with global registries. The demo uses plain
 dictionaries and functions so the live object system stays visible.
 """
 
+import tkinter as tk
+
 incoming_builds = []
 active_builds = []
 completed_builds = []
@@ -15,6 +17,8 @@ associates = {}
 routes = []
 trace = []
 dirty_associates = set()
+current_target_associate = None
+tk_master = None
 
 _next_ids = {
     "build": 0,
@@ -34,6 +38,9 @@ def reset():
     routes.clear()
     trace.clear()
     dirty_associates.clear()
+    global current_target_associate, tk_master
+    current_target_associate = None
+    tk_master = None
     for key in _next_ids:
         _next_ids[key] = 0
 
@@ -130,7 +137,6 @@ def allocate_castle_shells(build):
         "outbox": [],
         "active": False,
         "handle_fn": spec.get("handle_fn"),
-        "project_fn": spec.get("project_fn"),
     }
     castles[castle_id] = castle
     build["castle_ids"].append(castle_id)
@@ -190,7 +196,9 @@ def construct_widgets(build):
 def get_widget_parent(build, associate):
     parent_id = associate["parent_associate"]
     if parent_id is None:
-        return build["request"]["build_context"]["tk_master"]
+        if tk_master is None:
+            raise RuntimeError("setup_tk_bootstrap must be called before building")
+        return tk_master
 
     parent_associate = associates[parent_id]
     if parent_associate.get("child_tk_parent") is not None:
@@ -254,17 +262,33 @@ def activate_build(build):
         if route["id"] in build["route_ids"]:
             route["active"] = True
 
-    for castle_id in build["castle_ids"]:
-        project_fn = castles[castle_id].get("project_fn")
-        if project_fn is not None:
-            project_fn(castles[castle_id])
-
     trace.append("phase: activated build")
 
 
 def get_associate(castle, associate_name):
     associate_id = castle["associates"][associate_name]
     return associates[associate_id]
+
+
+def target_associate(associate_or_id):
+    global current_target_associate
+    if isinstance(associate_or_id, str):
+        current_target_associate = associates[associate_or_id]
+    else:
+        current_target_associate = associate_or_id
+
+
+def set_data(key, value):
+    if current_target_associate is None:
+        raise RuntimeError("set_data called without target_associate")
+
+    old_value = current_target_associate["data"].get(key)
+    if old_value == value:
+        return False
+
+    current_target_associate["data"][key] = value
+    mark_dirty(current_target_associate)
+    return True
 
 
 def mark_dirty(associate_or_id):
@@ -331,18 +355,82 @@ def project_dirty_associates():
         trace.append(f"projected {associate['name']}")
 
 
-def runtime_tick(tk_root):
+def runtime_tick():
     process_incoming_builds()
     deliver_messages()
     process_castle_messages()
     project_dirty_associates()
-    tk_root.after(50, runtime_tick, tk_root)
+    tk_master.after(50, runtime_tick)
+
+
+def setup_tk_bootstrap():
+    global tk_master
+    tk_master = tk.Tk()
+    tk_master.withdraw()
+    return tk_master
+
+
+def run():
+    if tk_master is None:
+        raise RuntimeError("setup_tk_bootstrap must be called before run")
+
+    tk_master.after(0, runtime_tick)
+    tk_master.mainloop()
 
 
 def destroy_all():
-    # TODO: grow this into pending_destroy -> deactivate -> remove routes ->
-    # destroy widgets -> unregister.
+    trace.append("destroy: begin")
+    deactivate_all()
+    clear_runtime_queues()
+    destroy_associate_widgets()
+    unregister_runtime_records()
+    trace.append("destroy: complete")
+
+
+def deactivate_all():
+    for route in routes:
+        route["active"] = False
+
+    for castle in castles.values():
+        castle["active"] = False
+
+    for associate in associates.values():
+        associate["active"] = False
+
+    trace.append("destroy: deactivated routes, castles, and associates")
+
+
+def clear_runtime_queues():
+    incoming_builds.clear()
+    active_builds.clear()
+    dirty_associates.clear()
+
+    for castle in castles.values():
+        castle["inbox"].clear()
+        castle["outbox"].clear()
+
+    for associate in associates.values():
+        associate["outbox"].clear()
+
+    trace.append("destroy: cleared build, message, and dirty queues")
+
+
+def destroy_associate_widgets():
     for associate in reversed(list(associates.values())):
         destroy_fn = associate["associate_type"].get("destroy_fn")
         if destroy_fn is not None:
             destroy_fn(associate)
+
+    trace.append("destroy: destroyed associate widgets child-first")
+
+
+def unregister_runtime_records():
+    global current_target_associate
+    current_target_associate = None
+    routes.clear()
+    associates.clear()
+    castles.clear()
+    completed_builds.clear()
+    faulty_builds.clear()
+
+    trace.append("destroy: unregistered runtime records")
