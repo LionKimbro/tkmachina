@@ -801,6 +801,7 @@ def schedule_clearing(spot_name):
         {
             "kind": "clearing",
             "castle_id": target["id"],
+            "castle_name": target["name"],
             "spot_name": spot_name,
         }
     )
@@ -818,6 +819,7 @@ def schedule_build(
         {
             "kind": "building",
             "castle_id": target["id"],
+            "castle_name": target["name"],
             "spot_name": spot_name,
             "template_fn": template_fn,
             "build_context": build_context or {},
@@ -838,6 +840,7 @@ def schedule_replacement(
         {
             "kind": "replacement",
             "castle_id": target["id"],
+            "castle_name": target["name"],
             "spot_name": spot_name,
             "template_fn": template_fn,
             "build_context": build_context or {},
@@ -1000,20 +1003,60 @@ def process_structural_requests():
     trace.append("structural: begin")
 
     for request in requests:
-        if request["kind"] in ("clearing", "replacement"):
-            try:
-                clear_spot_occupant(request["castle_id"], request["spot_name"])
-            except Exception as exc:
-                trace.append(f"structural delete failed: {exc}")
-
-    for request in requests:
-        if request["kind"] in ("building", "replacement"):
-            try:
-                build_structural_child_castle(request)
-            except Exception as exc:
-                trace.append(f"structural build failed: {exc}")
+        execute_structural_request(request)
 
     trace.append("structural: complete")
+
+
+def execute_structural_request(request):
+    request_kind = request["kind"]
+    if request_kind == "clearing":
+        execute_structural_clearing(request)
+    elif request_kind == "building":
+        execute_structural_build(request)
+    elif request_kind == "replacement":
+        execute_structural_replacement(request)
+    else:
+        trace.append(f"structural: unknown request kind {request_kind}")
+
+
+def execute_structural_clearing(request):
+    try:
+        clear_spot_occupant(request["castle_id"], request["spot_name"])
+    except Exception as exc:
+        trace.append(
+            f"structural clearing failed: {format_structural_error(request, exc)}"
+        )
+
+
+def execute_structural_build(request):
+    try:
+        build_structural_child_castle(request)
+    except Exception as exc:
+        trace.append(
+            f"structural build failed: {format_structural_error(request, exc)}"
+        )
+
+
+def execute_structural_replacement(request):
+    try:
+        clear_spot_occupant(request["castle_id"], request["spot_name"])
+    except Exception as exc:
+        trace.append(
+            f"structural replacement failed: {format_structural_error(request, exc)}"
+        )
+        return
+
+    try:
+        build_structural_child_castle(request)
+    except Exception as exc:
+        trace.append(f"structural replacement build failed: {format_structural_error(request, exc)}")
+
+
+def format_structural_error(request, exc):
+    target_name = request.get("castle_name", request.get("castle_id", "?"))
+    spot_name = request.get("spot_name", "?")
+    return f"{target_name}.{spot_name}: {exc}"
 
 
 def clear_spot_occupant(castle_id, spot_name):

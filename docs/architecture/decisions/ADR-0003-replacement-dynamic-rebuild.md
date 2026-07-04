@@ -234,3 +234,37 @@ build requested child castle from a template into an empty spot
 ```
 
 The structural phase must process all deletions before processing all builds. After the structural phase completes, normal castle reconciliation and associate projection may continue.
+
+
+## Codex Implementation Amendment: ADR-0013 Supersedes Global Delete-Then-Build
+
+ADR-0013 supersedes this document's global two-phase rule:
+
+```text
+all scheduled deletes happen before all scheduled builds
+```
+
+That sentence is historical.
+
+The operative rule is now:
+
+```text
+scheduled mutations execute in order as lifecycle operations
+```
+
+Therefore:
+
+* `schedule_clearing(...)` executes one clearing lifecycle operation when reached.
+* `schedule_build(...)` executes one building lifecycle operation when reached.
+* `schedule_replacement(...)` executes one replacement lifecycle operation when reached.
+
+Replacement remains local:
+
+```text
+clear target
+build target from template
+```
+
+Its clearing half and building half are not separated from each other by unrelated scheduled operations elsewhere in the queue.
+
+Each scheduled operation is validated against the live runtime world as it exists immediately before that operation executes. If the target is gone or invalid, the operation fails safely according to the active error policy.
