@@ -28,19 +28,10 @@ def demo_template(build_context):
         "child_castles": [
             {
                 "kind": "child_castle_spec",
-                "slot": "trace_log",
+                "name": "trace_log",
                 "template_fn": trace_log_castle_template,
                 "build_context": {
                     "trace_wraplength": build_context.get("trace_wraplength", 380),
-                },
-                "mount": {
-                    "parent_associate": "main_window",
-                    "grid": {
-                        "row": 3,
-                        "column": 0,
-                        "sticky": "ew",
-                        "pady": (14, 0),
-                    },
                 },
             },
         ],
@@ -59,61 +50,111 @@ def demo_template(build_context):
                     "actual_height": None,
                     "content_padding": 16,
                 },
-                "layout": {
-                    "columnconfigure": {0: {"weight": 1}},
+            },
+            {
+                "kind": "associate_spec",
+                "name": "priority_button",
+                "associate_type": BUTTON_ASSOCIATE_TYPE,
+                "data": {
+                    "text": "Required (5 left)",
+                    "enabled": True,
                 },
-                "children": [
-                    {
-                        "kind": "associate_spec",
-                        "name": "priority_button",
-                        "associate_type": BUTTON_ASSOCIATE_TYPE,
-                        "data": {
-                            "text": "Required (5 left)",
-                            "enabled": True,
-                        },
-                        "grid": {"row": 0, "column": 0, "sticky": "ew"},
-                    },
-                    {
-                        "kind": "associate_spec",
-                        "name": "count_label",
-                        "associate_type": LABEL_ASSOCIATE_TYPE,
-                        "data": {
-                            "text": "Castle state: press_count = 0",
-                        },
-                        "grid": {
-                            "row": 1,
-                            "column": 0,
-                            "sticky": "w",
-                            "pady": (14, 4),
-                        },
-                    },
-                    {
-                        "kind": "associate_spec",
-                        "name": "size_label",
-                        "associate_type": LABEL_ASSOCIATE_TYPE,
-                        "data": {
-                            "text": "Window frame: waiting for resize event",
-                        },
-                        "grid": {"row": 2, "column": 0, "sticky": "w"},
-                    },
-                    {
-                        "kind": "associate_spec",
-                        "name": "reset_button",
-                        "associate_type": BUTTON_ASSOCIATE_TYPE,
-                        "data": {
-                            "text": "Reset",
-                            "enabled": True,
-                        },
-                        "grid": {
-                            "row": 4,
-                            "column": 0,
-                            "sticky": "e",
-                            "pady": (14, 0),
-                        },
-                    },
-                ],
+            },
+            {
+                "kind": "associate_spec",
+                "name": "count_label",
+                "associate_type": LABEL_ASSOCIATE_TYPE,
+                "data": {
+                    "text": "Castle state: press_count = 0",
+                },
+            },
+            {
+                "kind": "associate_spec",
+                "name": "size_label",
+                "associate_type": LABEL_ASSOCIATE_TYPE,
+                "data": {
+                    "text": "Window frame: waiting for resize event",
+                },
+            },
+            {
+                "kind": "associate_spec",
+                "name": "reset_button",
+                "associate_type": BUTTON_ASSOCIATE_TYPE,
+                "data": {
+                    "text": "Reset",
+                    "enabled": True,
+                },
             },
         ],
+        "spots": {
+            "name": "main_window_spot",
+            "layout": {
+                "columnconfigure": {0: {"weight": 1}},
+            },
+            "children": [
+                {
+                    "name": "priority_button_spot",
+                    "grid": {"row": 0, "column": 0, "sticky": "ew"},
+                },
+                {
+                    "name": "count_label_spot",
+                    "grid": {
+                        "row": 1,
+                        "column": 0,
+                        "sticky": "w",
+                        "pady": (14, 4),
+                    },
+                },
+                {
+                    "name": "size_label_spot",
+                    "grid": {"row": 2, "column": 0, "sticky": "w"},
+                },
+                {
+                    "name": "trace_log_spot",
+                    "grid": {
+                        "row": 3,
+                        "column": 0,
+                        "sticky": "ew",
+                        "pady": (14, 0),
+                    },
+                },
+                {
+                    "name": "reset_button_spot",
+                    "grid": {
+                        "row": 4,
+                        "column": 0,
+                        "sticky": "e",
+                        "pady": (14, 0),
+                    },
+                },
+            ],
+        },
+        "placements": {
+            "main_window_spot": {
+                "kind": "associate",
+                "name": "main_window",
+            },
+            "priority_button_spot": {
+                "kind": "associate",
+                "name": "priority_button",
+            },
+            "count_label_spot": {
+                "kind": "associate",
+                "name": "count_label",
+            },
+            "size_label_spot": {
+                "kind": "associate",
+                "name": "size_label",
+            },
+            "trace_log_spot": {
+                "kind": "child_castle",
+                "name": "trace_log",
+            },
+            "reset_button_spot": {
+                "kind": "associate",
+                "name": "reset_button",
+            },
+        },
     }
 
 

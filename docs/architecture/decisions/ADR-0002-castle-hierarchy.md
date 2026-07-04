@@ -211,3 +211,20 @@ castle messages.
 
 Implemented in the demo runtime.
 
+## End Notes
+
+### Superseded Visual Mounting Model
+
+ADR-0012 refines this ADR.
+
+The logical parent/child castle hierarchy described here remains accepted: castles may contain child castles, child castles are independent runtime participants, and logical containment is distinct from visual presentation.
+
+However, ADR-0012 supersedes this ADR's `mount` representation for visual child castles. Visual placement should now be expressed by the parent castle's `spots` and `placements`, not by a `mount` block carried on the child castle declaration.
+
+In other words:
+
+```text
+ADR-0002 remains authoritative for castle hierarchy.
+ADR-0012 is authoritative for layout spots and visual placement.
+```
+

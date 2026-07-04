@@ -13,6 +13,8 @@ from tkinter import ttk
 def make_window_associate_type():
     return {
         "name": "window",
+        "can_host_children": True,
+        "embeddable": False,
         "setup_fn": setup_window_associate,
         "project_fn": project_window_associate,
         "destroy_fn": destroy_window_associate,
@@ -22,6 +24,8 @@ def make_window_associate_type():
 def make_button_associate_type():
     return {
         "name": "button",
+        "can_host_children": False,
+        "embeddable": True,
         "setup_fn": setup_button_associate,
         "project_fn": project_button_associate,
         "destroy_fn": destroy_widget_associate,
@@ -31,6 +35,8 @@ def make_button_associate_type():
 def make_label_associate_type():
     return {
         "name": "label",
+        "can_host_children": False,
+        "embeddable": True,
         "setup_fn": setup_label_associate,
         "project_fn": project_label_associate,
         "destroy_fn": destroy_widget_associate,

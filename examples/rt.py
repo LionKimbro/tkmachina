@@ -32,6 +32,7 @@ _next_ids = {
     "build": 0,
     "castle": 0,
     "associate": 0,
+    "spot": 0,
     "route": 0,
 }
 
@@ -154,9 +155,9 @@ def process_incoming_builds():
             "request": request,
             "spec": None,
             "castle_specs": {},
-            "castle_mounts": {},
             "castle_ids": [],
             "associate_ids": [],
+            "spot_ids": [],
             "route_ids": [],
             "global_export_names": [],
             "status": "active",
@@ -185,6 +186,8 @@ def process_build(build):
     allocate_castle_shells(build)
     register_global_exports(build)
     allocate_associate_shells(build)
+    allocate_spot_records(build)
+    apply_initial_placements(build)
     construct_widgets(build)
     apply_layout(build)
     wire_default_routes(build)
@@ -212,7 +215,7 @@ def allocate_castle_shells(build):
         build,
         build["spec"],
         parent_castle_id=parent_castle_id,
-        slot=request.get("slot"),
+        child_name=request.get("slot"),
     )
 
 
@@ -223,17 +226,19 @@ def get_castle_id(castle_or_id):
     return castle_or_id["id"]
 
 
-def allocate_castle_shell(build, spec, parent_castle_id=None, slot=None, mount=None):
+def allocate_castle_shell(build, spec, parent_castle_id=None, child_name=None):
     castle_id = make_id("castle")
     castle = {
         "kind": "castle",
         "id": castle_id,
         "name": spec["name"],
         "parent": parent_castle_id,
-        "slot": slot,
+        "child_name": child_name,
         "state": dict(spec.get("state", {})),
         "associates": {},
         "children": {},
+        "spots": {},
+        "placements": {},
         "inbox": [],
         "outbox": [],
         "active": False,
@@ -242,18 +247,16 @@ def allocate_castle_shell(build, spec, parent_castle_id=None, slot=None, mount=N
     }
     castles[castle_id] = castle
     build["castle_specs"][castle_id] = spec
-    if mount is not None:
-        build["castle_mounts"][castle_id] = mount
     build["castle_ids"].append(castle_id)
     trace.append(f"phase: allocated castle shell {castle['name']}")
 
     if parent_castle_id is not None:
         parent_castle = castles[parent_castle_id]
-        if slot in parent_castle["children"]:
-            raise ValueError(f"parent slot already has a child castle: {slot}")
-        parent_castle["children"][slot] = castle_id
+        if child_name in parent_castle["children"]:
+            raise ValueError(f"parent already has a child castle: {child_name}")
+        parent_castle["children"][child_name] = castle_id
         trace.append(
-            f"phase: mounted child castle {castle['name']} in slot {slot}"
+            f"phase: attached child castle {castle['name']} as {child_name}"
         )
 
     for child_spec in spec.get("child_castles", []):
@@ -264,8 +267,7 @@ def allocate_castle_shell(build, spec, parent_castle_id=None, slot=None, mount=N
             build,
             child_castle_spec,
             parent_castle_id=castle_id,
-            slot=child_spec["slot"],
-            mount=child_spec.get("mount"),
+            child_name=child_spec["name"],
         )
 
 
@@ -317,17 +319,6 @@ def allocate_castle_associate_shells(build, castle_id):
     spec = build["castle_specs"][castle_id]
     castle = castles[castle_id]
     associate_specs = spec.get("associates", [])
-    mount = build["castle_mounts"].get(castle_id)
-
-    parent_id = None
-    grid_override = None
-    if mount is not None:
-        if len(associate_specs) != 1:
-            raise ValueError(
-                f"mounted castle must have exactly one root associate: {castle['name']}"
-            )
-        parent_id = resolve_mount_parent_associate(castle, mount)
-        grid_override = mount.get("grid", {})
 
     for associate_spec in associate_specs:
         allocate_associate_shell(
@@ -335,19 +326,8 @@ def allocate_castle_associate_shells(build, castle_id):
             castle,
             castle_id,
             associate_spec,
-            parent_id,
-            grid_override=grid_override,
+            None,
         )
-
-
-def resolve_mount_parent_associate(castle, mount):
-    parent_castle_id = castle["parent"]
-    if parent_castle_id is None:
-        raise ValueError(f"mounted castle has no parent castle: {castle['name']}")
-
-    parent_castle = castles[parent_castle_id]
-    parent_associate_name = mount["parent_associate"]
-    return parent_castle["associates"][parent_associate_name]
 
 
 def allocate_associate_shell(
@@ -356,7 +336,6 @@ def allocate_associate_shell(
     castle_id,
     associate_spec,
     parent_id,
-    grid_override=None,
 ):
     associate_id = make_id("associate")
     associate = {
@@ -371,9 +350,7 @@ def allocate_associate_shell(
         "tk": None,
         "child_tk_parent": None,
         "layout": dict(associate_spec.get("layout", {})),
-        "grid": dict(
-            grid_override if grid_override is not None else associate_spec.get("grid", {})
-        ),
+        "grid": dict(associate_spec.get("grid", {})),
         "outbox": [],
         "active": False,
     }
@@ -386,8 +363,225 @@ def allocate_associate_shell(
 
     trace.append(f"phase: allocated associate shell {associate['name']}")
 
-    for child_spec in associate_spec.get("children", []):
-        allocate_associate_shell(build, castle, castle_id, child_spec, associate_id)
+
+
+def allocate_spot_records(build):
+    for castle_id in build["castle_ids"]:
+        spec = build["castle_specs"][castle_id]
+        spot_spec = spec.get("spots")
+        if spot_spec is not None:
+            allocate_spot_record(build, castle_id, spot_spec, None)
+
+
+def allocate_spot_record(build, castle_id, spot_spec, parent_spot_name):
+    castle = castles[castle_id]
+    spot_name = spot_spec["name"]
+    if spot_name in castle["spots"]:
+        raise ValueError(f"duplicate spot in castle {castle['name']}: {spot_name}")
+
+    spot_id = make_id("spot")
+    spot = {
+        "kind": "spot",
+        "id": spot_id,
+        "name": spot_name,
+        "host_castle": castle_id,
+        "parent_spot": parent_spot_name,
+        "children": [],
+        "layout": dict(spot_spec.get("layout", {})),
+        "grid": dict(spot_spec.get("grid", {})),
+        "occupant": None,
+        "active": False,
+    }
+    castle["spots"][spot_name] = spot
+    build["spot_ids"].append(spot_id)
+
+    if parent_spot_name is not None:
+        castle["spots"][parent_spot_name]["children"].append(spot_name)
+
+    trace.append(f"phase: allocated spot {spot_name} for {castle['name']}")
+
+    for child_spot_spec in spot_spec.get("children", []):
+        allocate_spot_record(build, castle_id, child_spot_spec, spot_name)
+
+
+def apply_initial_placements(build):
+    assign_initial_spot_occupants(build)
+    validate_spot_occupants(build)
+    apply_spot_placement_effects(build)
+    trace.append("phase: applied initial spot placements")
+
+
+def assign_initial_spot_occupants(build):
+    for castle_id in build["castle_ids"]:
+        castle = castles[castle_id]
+        spec = build["castle_specs"][castle_id]
+        placements = spec.get("placements", {})
+        castle["placements"] = dict(placements)
+
+        for spot_name, placement in placements.items():
+            if spot_name not in castle["spots"]:
+                raise ValueError(f"unknown spot in placement: {spot_name}")
+
+            castle["spots"][spot_name]["occupant"] = resolve_placement_occupant(
+                castle,
+                placement,
+            )
+
+
+def resolve_placement_occupant(castle, placement):
+    placement_kind = placement["kind"]
+    placement_name = placement["name"]
+
+    if placement_kind == "associate":
+        if placement_name not in castle["associates"]:
+            raise ValueError(
+                f"unknown associate placement {placement_name} in {castle['name']}"
+            )
+        return {
+            "kind": "associate",
+            "id": castle["associates"][placement_name],
+        }
+
+    if placement_kind == "child_castle":
+        if placement_name not in castle["children"]:
+            raise ValueError(
+                f"unknown child castle placement {placement_name} in {castle['name']}"
+            )
+        return {
+            "kind": "child_castle",
+            "id": castle["children"][placement_name],
+        }
+
+    raise ValueError(f"unknown placement kind: {placement_kind}")
+
+
+def validate_spot_occupants(build):
+    for castle_id in build["castle_ids"]:
+        castle = castles[castle_id]
+        for spot in castle["spots"].values():
+            validate_branching_spot(castle, spot)
+            validate_placed_child_castle(castle, spot)
+
+
+def validate_branching_spot(castle, spot):
+    occupied_child_names = [
+        child_name
+        for child_name in spot["children"]
+        if castle["spots"][child_name]["occupant"] is not None
+    ]
+    if not occupied_child_names:
+        return
+
+    if spot["occupant"] is None:
+        raise ValueError(
+            f"branching spot has occupied children but no occupant: {spot['name']}"
+        )
+
+    if spot["occupant"]["kind"] != "associate":
+        raise ValueError(
+            f"branching spot must be occupied by a local associate: {spot['name']}"
+        )
+
+    associate = associates[spot["occupant"]["id"]]
+    associate_type = associate["associate_type"]
+    if not associate_type.get("can_host_children", False):
+        raise ValueError(
+            f"branching spot occupant cannot host child spots: {associate['name']}"
+        )
+
+
+def validate_placed_child_castle(castle, spot):
+    if spot["occupant"] is None or spot["occupant"]["kind"] != "child_castle":
+        return
+
+    child_castle = castles[spot["occupant"]["id"]]
+    root_associate = get_child_castle_root_associate(child_castle)
+    parent_associate_id = resolve_spot_parent_associate(castle, spot)
+    if (
+        parent_associate_id is not None
+        and not root_associate["associate_type"].get("embeddable", True)
+    ):
+        raise ValueError(
+            f"child castle root is not embeddable: {child_castle['name']}"
+        )
+
+
+def apply_spot_placement_effects(build):
+    for castle_id in build["castle_ids"]:
+        castle = castles[castle_id]
+        for spot in castle["spots"].values():
+            occupant = spot["occupant"]
+            if occupant is None:
+                continue
+
+            parent_associate_id = resolve_spot_parent_associate(castle, spot)
+            if occupant["kind"] == "associate":
+                associate = associates[occupant["id"]]
+                if (
+                    parent_associate_id is not None
+                    and not associate["associate_type"].get("embeddable", True)
+                ):
+                    raise ValueError(
+                        f"associate is not embeddable in child spot: {associate['name']}"
+                    )
+                place_associate_in_spot(associate, parent_associate_id, spot)
+            elif occupant["kind"] == "child_castle":
+                child_castle = castles[occupant["id"]]
+                root_associate = get_child_castle_root_associate(child_castle)
+                place_associate_in_spot(root_associate, parent_associate_id, spot)
+            else:
+                raise ValueError(f"unknown spot occupant kind: {occupant['kind']}")
+
+
+def resolve_spot_parent_associate(castle, spot):
+    parent_spot_name = spot["parent_spot"]
+    if parent_spot_name is None:
+        return None
+
+    parent_spot = castle["spots"][parent_spot_name]
+    if parent_spot["occupant"] is None:
+        raise ValueError(
+            f"spot parent has no occupant for child spot: {spot['name']}"
+        )
+
+    if parent_spot["occupant"]["kind"] != "associate":
+        raise ValueError(
+            f"spot parent is not a local associate: {parent_spot_name}"
+        )
+
+    return parent_spot["occupant"]["id"]
+
+
+def place_associate_in_spot(associate, parent_associate_id, spot):
+    old_parent_id = associate.get("parent_associate")
+    if old_parent_id is not None and old_parent_id != parent_associate_id:
+        old_children = associates[old_parent_id]["children"]
+        if associate["id"] in old_children:
+            old_children.remove(associate["id"])
+
+    associate["parent_associate"] = parent_associate_id
+    if parent_associate_id is not None:
+        parent_children = associates[parent_associate_id]["children"]
+        if associate["id"] not in parent_children:
+            parent_children.append(associate["id"])
+
+    associate["grid"] = dict(spot["grid"])
+    associate["layout"] = dict(spot["layout"])
+
+
+def get_child_castle_root_associate(child_castle):
+    root_associate_ids = [
+        associate_id
+        for associate_id in child_castle["associates"].values()
+        if associates[associate_id]["parent_associate"] is None
+    ]
+    if len(root_associate_ids) != 1:
+        raise ValueError(
+            f"placed child castle must have exactly one root associate: "
+            f"{child_castle['name']}"
+        )
+
+    return associates[root_associate_ids[0]]
 
 
 def construct_widgets(build):
@@ -522,6 +716,8 @@ def find_built_associate_id(build, associate_name):
 def activate_build(build):
     for castle_id in build["castle_ids"]:
         castles[castle_id]["active"] = True
+        for spot in castles[castle_id]["spots"].values():
+            spot["active"] = True
 
     for associate_id in build["associate_ids"]:
         associates[associate_id]["active"] = True
@@ -717,7 +913,7 @@ def unregister_build_records(build):
     build["route_ids"].clear()
     build["associate_ids"].clear()
     build["castle_specs"].clear()
-    build["castle_mounts"].clear()
+    build["spot_ids"].clear()
     build["castle_ids"].clear()
 
 

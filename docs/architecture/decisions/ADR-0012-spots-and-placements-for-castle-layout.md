@@ -24,6 +24,8 @@ We therefore need a clearer model:
 
 The castle should declare local associates, child castles, a tree of named spots, and initial placements into those spots. The runtime is responsible for sequencing construction, destruction, mounting, unmounting, routing, activation, reconciliation, and projection.
 
+This ADR supersedes ADR-0002's visual `mount` representation for child castles. ADR-0002 remains authoritative for logical parent/child castle hierarchy, but visual placement is now described by `spots` and `placements`, not by a `mount` block on the child castle declaration.
+
 ## Decision
 
 A castle spec may use the following shape:
@@ -156,7 +158,11 @@ Or, equivalently:
 
 ### 4. Branching requires a local associate container
 
-If a spot has child spots, then the thing placed in that spot must be a local associate that can contain children.
+If a spot has child spots, and any of those child spots are occupied, then the branching spot must also be occupied.
+
+The occupant of that branching spot must be a local associate that exposes a child layout parent: for example, an associate to a `Frame`, `LabelFrame`, panel, window content region, or some other widget/container capable of hosting griddable children.
+
+The builder must reject a build if occupied child spots require a layout parent and no suitable local associate is placed at the branching spot.
 
 For example, if `main_window_spot` has children, then `main_window_spot` must initially contain an associate such as `main_window`, whose associate type exposes a child layout parent.
 
@@ -190,6 +196,26 @@ This is invalid if `trace_log_spot` contains a child castle:
 ```
 
 The parent castle does not own the trace log castle’s internal layout.
+
+If the builder detects this situation during construction, it must fail the build rather than silently improvising. The failed build should enter the runtime's failed/faulty build list, and any partially constructed records or widgets should go through the runtime destruction path rather than being abandoned.
+
+### 4a. Placed child castles require an embeddable root
+
+A child castle placed into a parent spot must expose a root visual associate that can be embedded at that spot.
+
+That root may be a simple widget such as a button or label, or it may be a container such as a frame, label frame, or panel. The parent spot is responsible only for placing that root. The parent may not place or arrange anything inside the child castle's root.
+
+If the child castle is purely logical or headless, it may be declared as a child castle, but it may not be placed into a visual spot unless it has an embeddable root visual associate.
+
+A `tkinter.Toplevel`-style root is not embeddable inside another castle's placement tree. A castle may own a Toplevel as its own root, but such a castle cannot be placed within another castle's internal spot hierarchy. The only exception is when that Toplevel-root castle is placed at the root of a placement tree as the sole occupant, so it is not being embedded inside another widget hierarchy.
+
+Therefore:
+
+* Local associates may be layout branches if they expose child layout parents.
+* Child castles are leaves in the parent layout.
+* A placed child castle must provide one embeddable root visual associate.
+* A headless child castle may be routed to and owned, but not visually placed.
+* A Toplevel-root castle is a window root, not an embeddable child, except as the sole root occupant of a placement tree.
 
 ### 5. Local names are used in specs and APIs
 
@@ -261,6 +287,8 @@ The runtime is responsible for sequencing, including:
 
 The exact implementation order may evolve, but the template should remain declarative.
 
+ADR-0012 takes priority over any earlier implementation that uses associate nesting or child-castle `mount` blocks as the layout model. Existing runtime code should be migrated toward this `spots` and `placements` schema.
+
 ## Consequences
 
 ### Benefits
@@ -300,3 +328,48 @@ Associates and child castles are things. Spots are places. Placements say which 
 A child castle may be placed in a spot, but it is a leaf in the parent castle’s layout. The child castle owns its own internal layout.
 
 Structural changes to spots are staged through runtime requests and applied only during safe runtime phases.
+
+## Codex Implementation Review Notes
+
+These notes record implementation-oriented clarifications from Codex review. They are not separate decisions; they are marginalia intended to make the ADR easier to translate into runtime work.
+
+### Relationship to ADR-0002
+
+ADR-0012 refines ADR-0002. ADR-0002 remains correct that castles may contain child castles and that logical containment is distinct from visual presentation.
+
+However, ADR-0012 replaces ADR-0002's child-castle `mount` representation. A child castle no longer carries its parent layout instructions. Instead, the parent castle declares spots, and placements say which associate or child castle initially occupies each spot.
+
+### Builder validation for branching spots
+
+The builder must enforce the branching-spot rule:
+
+```text
+occupied child spots
+  -> parent spot must be occupied
+  -> parent spot occupant must expose a child layout parent
+```
+
+If this is not true, the build is invalid. The runtime should reject the build, destroy any partially constructed runtime artifacts through the destruction process, and move the build record to the failed/faulty build list.
+
+### Embeddable roots for child castles
+
+When a parent places a child castle, it places only the child's root visual associate. The parent does not receive authority to lay out through that root into the child's internals.
+
+The root visual associate must be embeddable in the parent spot. A `Toplevel` is not embeddable into another widget hierarchy. A Toplevel-root castle may still exist as its own window, but it should not be placed inside another castle's placement tree except as the sole root occupant.
+
+### Current implementation priority
+
+ADR-0012 is the preferred schema even where current demo code still reflects ADR-0002-era `mount` mechanics.
+
+Implementation should move toward:
+
+```text
+associates + child_castles + spots + placements
+```
+
+and away from:
+
+```text
+associate nesting as layout
+child_castle.mount as parent layout instruction
+```
