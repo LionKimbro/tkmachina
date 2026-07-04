@@ -247,7 +247,10 @@ Instead, handlers and reconcile functions may schedule structural intentions, su
 
 ```python
 rt.target_castle(castle)
-rt.schedule_replacement("trace_log_spot", child_castle)
+rt.schedule_replacement("trace_log_spot", child_castle)    [PS:]
+
+  [PS:] actually:
+        rt.schedule_replacement("trace_log_spot", child_castle_template)
 ```
 
 or:
@@ -255,7 +258,10 @@ or:
 ```python
 rt.target_castle(castle)
 rt.schedule_clearing("trace_log_spot")
-rt.schedule_placement("trace_log_spot", child_castle)
+rt.schedule_placement("trace_log_spot", child_castle)    [PS:]
+
+  [PS:] actually:
+        rt.schedule_build("trace_log_spot", child_Castle_template)
 ```
 
 The exact API may change, but the architectural rule is firm:
@@ -373,3 +379,67 @@ and away from:
 associate nesting as layout
 child_castle.mount as parent layout instruction
 ```
+
+## Clarification: Scheduled replacement uses templates, not live child castles
+
+ADR-0012 examples should distinguish between a live child castle instance and a child castle template.
+
+A child castle instance is produced by the runtime build process. Therefore, scheduled structural operations should not be described as though a live child castle is already available to place.
+
+This wording is misleading:
+
+```python
+rt.target_castle(castle)
+rt.schedule_replacement("trace_log_spot", child_castle)
+```
+
+and:
+
+```python
+rt.target_castle(castle)
+rt.schedule_clearing("trace_log_spot")
+rt.schedule_placement("trace_log_spot", child_castle)
+```
+
+The intended shape is:
+
+```python
+rt.target_castle(castle)
+rt.schedule_replacement("trace_log_spot", child_castle_template)
+```
+
+or:
+
+```python
+rt.target_castle(castle)
+rt.schedule_clearing("trace_log_spot")
+rt.schedule_build("trace_log_spot", child_castle_template)
+```
+
+A template is class-like: it describes the initial structure of a castle to be built. When the template is supplied to the runtime build process, the runtime reads the template and creates a live castle instance that matches it.
+
+Therefore:
+
+```text
+schedule_replacement = schedule deletion of the current spot occupant, then schedule building of a new occupant from a template
+```
+
+and:
+
+```text
+schedule_build = schedule construction of a new child castle from a template, with the resulting castle placed into the named spot
+```
+
+The operation targets a spot in a live castle instance, but the new occupant is specified by a template. The live child castle does not exist until the runtime performs the scheduled build phase.
+
+## Codex Implementation Amendment: Scheduled build naming
+
+The runtime API name for scheduled construction should be:
+
+```python
+rt.schedule_build("trace_log_spot", child_castle_template)
+```
+
+Older references to `schedule_placement(...)` describe the same conceptual territory with misleading language and should be read as historical.
+
+`schedule_build(...)` is preferred because the live child castle does not exist yet. The runtime receives a template, builds a new child castle instance during the structural phase, and then occupies the named spot with the resulting child castle root.

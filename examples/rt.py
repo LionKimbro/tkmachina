@@ -11,6 +11,7 @@ incoming_builds = []
 active_builds = []
 completed_builds = []
 faulty_builds = []
+structural_requests = []
 
 castles = {}
 associates = {}
@@ -19,6 +20,7 @@ trace = []
 dirty_castles = set()
 dirty_associates = set()
 current_target_associate = None
+current_target_castle = None
 tk_master = None
 global_castles = {}
 
@@ -48,9 +50,11 @@ def reset():
     trace.clear()
     dirty_castles.clear()
     dirty_associates.clear()
+    structural_requests.clear()
     global_castles.clear()
-    global current_target_associate, tk_master
+    global current_target_associate, current_target_castle, tk_master
     current_target_associate = None
+    current_target_castle = None
     tk_master = None
     for key in _next_ids:
         _next_ids[key] = 0
@@ -66,8 +70,11 @@ def make_build_request(
     build_context=None,
     parent_castle=None,
     slot=None,
+    child_name=None,
+    parent_spot=None,
     activate_when_complete=True,
 ):
+    resolved_child_name = child_name if child_name is not None else slot
     return {
         "kind": "build_request",
         "id": make_id("build"),
@@ -75,6 +82,8 @@ def make_build_request(
         "build_context": build_context or {},
         "parent_castle": parent_castle,
         "slot": slot,
+        "child_name": resolved_child_name,
+        "parent_spot": parent_spot,
         "activate_when_complete": activate_when_complete,
     }
 
@@ -150,35 +159,41 @@ def get_trace_entries():
 def process_incoming_builds():
     while incoming_builds:
         request = incoming_builds.pop(0)
-        build = {
-            "kind": "active_build",
-            "request": request,
-            "spec": None,
-            "castle_specs": {},
-            "castle_ids": [],
-            "associate_ids": [],
-            "spot_ids": [],
-            "route_ids": [],
-            "global_export_names": [],
-            "status": "active",
-        }
-        active_builds.append(build)
-        trace.append(f"started build {request['id']}")
+        execute_build_request(request)
 
-        try:
-            process_build(build)
-        except Exception as exc:
-            build["status"] = "faulty"
-            build["error"] = repr(exc)
-            cleanup_failed_build(build)
-            active_builds.remove(build)
-            faulty_builds.append(build)
-            trace.append(f"build {request['id']} failed: {exc}")
-        else:
-            build["status"] = "completed"
-            active_builds.remove(build)
-            completed_builds.append(build)
-            trace.append(f"completed build {request['id']}")
+
+def execute_build_request(request):
+    build = {
+        "kind": "active_build",
+        "request": request,
+        "spec": None,
+        "castle_specs": {},
+        "castle_ids": [],
+        "associate_ids": [],
+        "spot_ids": [],
+        "route_ids": [],
+        "global_export_names": [],
+        "status": "active",
+    }
+    active_builds.append(build)
+    trace.append(f"started build {request['id']}")
+
+    try:
+        process_build(build)
+    except Exception as exc:
+        build["status"] = "faulty"
+        build["error"] = repr(exc)
+        cleanup_failed_build(build)
+        active_builds.remove(build)
+        faulty_builds.append(build)
+        trace.append(f"build {request['id']} failed: {exc}")
+        return None
+
+    build["status"] = "completed"
+    active_builds.remove(build)
+    completed_builds.append(build)
+    trace.append(f"completed build {request['id']}")
+    return build
 
 
 def process_build(build):
@@ -188,6 +203,7 @@ def process_build(build):
     allocate_associate_shells(build)
     allocate_spot_records(build)
     apply_initial_placements(build)
+    apply_parent_spot_placement(build)
     construct_widgets(build)
     apply_layout(build)
     wire_default_routes(build)
@@ -208,14 +224,14 @@ def allocate_castle_shells(build):
     parent_castle_id = None
     if parent_castle is not None:
         parent_castle_id = get_castle_id(parent_castle)
-        if request.get("slot") is None:
-            raise ValueError("slot is required when parent_castle is provided")
+        if request.get("child_name") is None:
+            raise ValueError("child_name is required when parent_castle is provided")
 
     allocate_castle_shell(
         build,
         build["spec"],
         parent_castle_id=parent_castle_id,
-        child_name=request.get("slot"),
+        child_name=request.get("child_name"),
     )
 
 
@@ -409,6 +425,43 @@ def apply_initial_placements(build):
     validate_spot_occupants(build)
     apply_spot_placement_effects(build)
     trace.append("phase: applied initial spot placements")
+
+
+def apply_parent_spot_placement(build):
+    request = build["request"]
+    parent_castle_ref = request.get("parent_castle")
+    parent_spot_name = request.get("parent_spot")
+    if parent_castle_ref is None or parent_spot_name is None:
+        return
+
+    parent_castle = castles[get_castle_id(parent_castle_ref)]
+    if parent_spot_name not in parent_castle["spots"]:
+        raise ValueError(f"unknown parent spot for placement: {parent_spot_name}")
+
+    parent_spot = parent_castle["spots"][parent_spot_name]
+    if parent_spot["occupant"] is not None:
+        raise ValueError(f"parent spot is already occupied: {parent_spot_name}")
+
+    child_castle_id = build["castle_ids"][0]
+    child_castle = castles[child_castle_id]
+    parent_spot["occupant"] = {
+        "kind": "child_castle",
+        "id": child_castle_id,
+    }
+    parent_castle["placements"][parent_spot_name] = {
+        "kind": "child_castle",
+        "name": child_castle["child_name"],
+    }
+
+    validate_branching_spot(parent_castle, parent_spot)
+    validate_placed_child_castle(parent_castle, parent_spot)
+    parent_associate_id = resolve_spot_parent_associate(parent_castle, parent_spot)
+    root_associate = get_child_castle_root_associate(child_castle)
+    place_associate_in_spot(root_associate, parent_associate_id, parent_spot)
+    trace.append(
+        f"phase: placed child castle {child_castle['name']} "
+        f"in {parent_castle['name']}.{parent_spot_name}"
+    )
 
 
 def assign_initial_spot_occupants(build):
@@ -734,6 +787,88 @@ def get_associate(castle, associate_name):
     return associates[associate_id]
 
 
+def target_castle(castle_or_id):
+    global current_target_castle
+    if isinstance(castle_or_id, str):
+        current_target_castle = castles[castle_or_id]
+    else:
+        current_target_castle = castle_or_id
+
+
+def schedule_clearing(spot_name):
+    target = require_target_castle()
+    structural_requests.append(
+        {
+            "kind": "clearing",
+            "castle_id": target["id"],
+            "spot_name": spot_name,
+        }
+    )
+    trace.append(f"scheduled clearing {target['name']}.{spot_name}")
+
+
+def schedule_build(
+    spot_name,
+    template_fn,
+    build_context=None,
+    child_name=None,
+):
+    target = require_target_castle()
+    structural_requests.append(
+        {
+            "kind": "building",
+            "castle_id": target["id"],
+            "spot_name": spot_name,
+            "template_fn": template_fn,
+            "build_context": build_context or {},
+            "child_name": child_name or spot_name,
+        }
+    )
+    trace.append(f"scheduled build {target['name']}.{spot_name}")
+
+
+def schedule_replacement(
+    spot_name,
+    template_fn,
+    build_context=None,
+    child_name=None,
+):
+    target = require_target_castle()
+    structural_requests.append(
+        {
+            "kind": "replacement",
+            "castle_id": target["id"],
+            "spot_name": spot_name,
+            "template_fn": template_fn,
+            "build_context": build_context or {},
+            "child_name": child_name or infer_spot_child_name(target, spot_name),
+        }
+    )
+    trace.append(f"scheduled replacement {target['name']}.{spot_name}")
+
+
+def require_target_castle():
+    if current_target_castle is None:
+        raise RuntimeError("structural operation called without target_castle")
+    return current_target_castle
+
+
+def infer_spot_child_name(castle, spot_name):
+    spot = castle["spots"].get(spot_name)
+    if spot is None:
+        return spot_name
+
+    occupant = spot.get("occupant")
+    if occupant is None or occupant["kind"] != "child_castle":
+        return spot_name
+
+    child_castle = castles.get(occupant["id"])
+    if child_castle is None:
+        return spot_name
+
+    return child_castle.get("child_name") or spot_name
+
+
 def target_associate(associate_or_id):
     global current_target_associate
     if isinstance(associate_or_id, str):
@@ -856,20 +991,246 @@ def project_dirty_associates():
         trace.append(f"projected {associate['name']}")
 
 
+def process_structural_requests():
+    if not structural_requests:
+        return
+
+    requests = list(structural_requests)
+    structural_requests.clear()
+    trace.append("structural: begin")
+
+    for request in requests:
+        if request["kind"] in ("clearing", "replacement"):
+            try:
+                clear_spot_occupant(request["castle_id"], request["spot_name"])
+            except Exception as exc:
+                trace.append(f"structural delete failed: {exc}")
+
+    for request in requests:
+        if request["kind"] in ("building", "replacement"):
+            try:
+                build_structural_child_castle(request)
+            except Exception as exc:
+                trace.append(f"structural build failed: {exc}")
+
+    trace.append("structural: complete")
+
+
+def clear_spot_occupant(castle_id, spot_name):
+    castle = castles[castle_id]
+    if spot_name not in castle["spots"]:
+        raise ValueError(f"unknown spot for clearing: {spot_name}")
+
+    spot = castle["spots"][spot_name]
+    occupant = spot["occupant"]
+    if occupant is None:
+        trace.append(f"structural: cleared already-empty {castle['name']}.{spot_name}")
+        return
+
+    if occupant["kind"] == "associate":
+        raise NotImplementedError(
+            "dynamic clearing of associate spot occupants is not implemented"
+        )
+
+    if occupant["kind"] != "child_castle":
+        raise ValueError(f"unknown spot occupant kind: {occupant['kind']}")
+
+    child_castle_id = occupant["id"]
+    destroy_castle_subtree(child_castle_id)
+    spot["occupant"] = None
+    castle["placements"].pop(spot_name, None)
+    trace.append(f"structural: cleared {castle['name']}.{spot_name}")
+
+
+def build_structural_child_castle(request):
+    castle = castles[request["castle_id"]]
+    spot_name = request["spot_name"]
+    if spot_name not in castle["spots"]:
+        raise ValueError(f"unknown spot for build: {spot_name}")
+    if castle["spots"][spot_name]["occupant"] is not None:
+        raise ValueError(f"spot is occupied before build: {spot_name}")
+
+    build_request = make_build_request(
+        template_fn=request["template_fn"],
+        build_context=request["build_context"],
+        parent_castle=castle["id"],
+        child_name=request["child_name"],
+        parent_spot=spot_name,
+    )
+    build = execute_build_request(build_request)
+    if build is None:
+        trace.append(f"structural: build failed for {castle['name']}.{spot_name}")
+    else:
+        trace.append(f"structural: built {castle['name']}.{spot_name}")
+
+
+def destroy_castle_subtree(root_castle_id):
+    castle_ids = collect_castle_subtree_ids(root_castle_id)
+    associate_ids = []
+    route_ids = set()
+
+    for castle_id in castle_ids:
+        castle = castles[castle_id]
+        castle["active"] = False
+        castle["inbox"].clear()
+        castle["outbox"].clear()
+        dirty_castles.discard(castle_id)
+        associate_ids.extend(castle["associates"].values())
+        revoke_castle_global_exports(castle)
+
+    associate_id_set = set(associate_ids)
+    castle_id_set = set(castle_ids)
+    for route in routes:
+        from_removed = (
+            route["from_kind"] == "associate"
+            and route["from_id"] in associate_id_set
+        ) or (
+            route["from_kind"] == "castle"
+            and route["from_id"] in castle_id_set
+        )
+        to_removed = (
+            route["to_kind"] == "associate"
+            and route["to_id"] in associate_id_set
+        ) or (
+            route["to_kind"] == "castle"
+            and route["to_id"] in castle_id_set
+        )
+        if from_removed or to_removed:
+            route["active"] = False
+            route_ids.add(route["id"])
+
+    routes[:] = [route for route in routes if route["id"] not in route_ids]
+
+    for associate_id in reversed(associate_ids):
+        associate = associates.get(associate_id)
+        if associate is None:
+            continue
+
+        associate["active"] = False
+        associate["outbox"].clear()
+        dirty_associates.discard(associate_id)
+        detach_associate_from_parent(associate)
+        destroy_fn = associate["associate_type"].get("destroy_fn")
+        detach_associate_from_parent(associate)
+        if destroy_fn is not None:
+            destroy_fn(associate)
+
+    for associate_id in associate_ids:
+        associates.pop(associate_id, None)
+
+    detach_castles_from_parents(castle_ids)
+    for castle_id in reversed(castle_ids):
+        castles.pop(castle_id, None)
+
+    remove_destroyed_records_from_completed_builds(castle_ids, associate_ids, route_ids)
+    trace.append(f"structural: destroyed castle subtree {root_castle_id}")
+
+
+def collect_castle_subtree_ids(root_castle_id):
+    castle = castles[root_castle_id]
+    castle_ids = [root_castle_id]
+    for child_castle_id in castle["children"].values():
+        castle_ids.extend(collect_castle_subtree_ids(child_castle_id))
+    return castle_ids
+
+
+def revoke_castle_global_exports(castle):
+    for export_name in list(castle.get("global_names", [])):
+        global_castles.pop(export_name, None)
+        castle["global_names"].remove(export_name)
+        trace.append(f"structural: revoked global export {export_name}")
+
+
+def detach_associate_from_parent(associate):
+    parent_id = associate.get("parent_associate")
+    if parent_id is None or parent_id not in associates:
+        return
+
+    parent_children = associates[parent_id]["children"]
+    if associate["id"] in parent_children:
+        parent_children.remove(associate["id"])
+
+
+def detach_castles_from_parents(castle_ids):
+    castle_id_set = set(castle_ids)
+    for castle in castles.values():
+        for child_name, child_castle_id in list(castle["children"].items()):
+            if child_castle_id in castle_id_set:
+                castle["children"].pop(child_name)
+
+
+def remove_destroyed_records_from_completed_builds(castle_ids, associate_ids, route_ids):
+    castle_id_set = set(castle_ids)
+    associate_id_set = set(associate_ids)
+    route_id_set = set(route_ids)
+
+    for build in completed_builds:
+        build["castle_ids"] = [
+            castle_id
+            for castle_id in build["castle_ids"]
+            if castle_id not in castle_id_set
+        ]
+        build["associate_ids"] = [
+            associate_id
+            for associate_id in build["associate_ids"]
+            if associate_id not in associate_id_set
+        ]
+        build["route_ids"] = [
+            route_id
+            for route_id in build["route_ids"]
+            if route_id not in route_id_set
+        ]
+
+
 def runtime_tick():
     process_incoming_builds()
     deliver_messages()
     process_castle_messages()
     reconcile_dirty_castles()
+    process_structural_requests()
     project_dirty_associates()
     tk_master.after(50, runtime_tick)
 
 
 def cleanup_failed_build(build):
     revoke_global_exports(build)
+    detach_failed_parent_spot_placement(build)
     destroy_build_associate_widgets(build)
     unregister_build_records(build)
     trace.append(f"cleanup: removed failed build {build['request']['id']} records")
+
+
+def detach_failed_parent_spot_placement(build):
+    request = build["request"]
+    parent_castle_ref = request.get("parent_castle")
+    parent_spot_name = request.get("parent_spot")
+    if parent_castle_ref is None or parent_spot_name is None:
+        return
+
+    parent_castle = castles.get(get_castle_id(parent_castle_ref))
+    if parent_castle is None:
+        return
+
+    spot = parent_castle["spots"].get(parent_spot_name)
+    if spot is not None:
+        occupant = spot.get("occupant")
+        if (
+            occupant is not None
+            and occupant["kind"] == "child_castle"
+            and occupant["id"] in build["castle_ids"]
+        ):
+            spot["occupant"] = None
+            parent_castle["placements"].pop(parent_spot_name, None)
+            trace.append(
+                f"cleanup: detached failed placement "
+                f"{parent_castle['name']}.{parent_spot_name}"
+            )
+
+    child_name = request.get("child_name")
+    if child_name is not None:
+        child_castle_id = parent_castle["children"].get(child_name)
+        if child_castle_id in build["castle_ids"]:
+            parent_castle["children"].pop(child_name)
 
 
 def revoke_global_exports(build):
@@ -901,6 +1262,8 @@ def unregister_build_records(build):
     route_ids = set(build.get("route_ids", []))
     if route_ids:
         routes[:] = [route for route in routes if route["id"] not in route_ids]
+
+    detach_castles_from_parents(build.get("castle_ids", []))
 
     for associate_id in build.get("associate_ids", []):
         dirty_associates.discard(associate_id)
@@ -959,6 +1322,7 @@ def deactivate_all():
 def clear_runtime_queues():
     incoming_builds.clear()
     active_builds.clear()
+    structural_requests.clear()
     dirty_castles.clear()
     dirty_associates.clear()
 
@@ -989,8 +1353,9 @@ def destroy_associate_widgets():
 
 
 def unregister_runtime_records():
-    global current_target_associate
+    global current_target_associate, current_target_castle
     current_target_associate = None
+    current_target_castle = None
     routes.clear()
     associates.clear()
     castles.clear()

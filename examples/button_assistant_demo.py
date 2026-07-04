@@ -22,6 +22,8 @@ def demo_template(build_context):
             "button_enabled": True,
             "window_width": None,
             "window_height": None,
+            "trace_generation": 0,
+            "trace_wraplength": build_context.get("trace_wraplength", 380),
         },
         "handle_fn": handle_demo_castle_message,
         "reconcile_fn": reconcile_demo_castle,
@@ -85,6 +87,15 @@ def demo_template(build_context):
                     "enabled": True,
                 },
             },
+            {
+                "kind": "associate_spec",
+                "name": "replace_trace_button",
+                "associate_type": BUTTON_ASSOCIATE_TYPE,
+                "data": {
+                    "text": "Replace trace",
+                    "enabled": True,
+                },
+            },
         ],
         "spots": {
             "name": "main_window_spot",
@@ -127,6 +138,15 @@ def demo_template(build_context):
                         "pady": (14, 0),
                     },
                 },
+                {
+                    "name": "replace_trace_button_spot",
+                    "grid": {
+                        "row": 5,
+                        "column": 0,
+                        "sticky": "e",
+                        "pady": (8, 0),
+                    },
+                },
             ],
         },
         "placements": {
@@ -153,6 +173,10 @@ def demo_template(build_context):
             "reset_button_spot": {
                 "kind": "associate",
                 "name": "reset_button",
+            },
+            "replace_trace_button_spot": {
+                "kind": "associate",
+                "name": "replace_trace_button",
             },
         },
     }
@@ -188,8 +212,15 @@ def trace_log_castle_template(build_context):
                 "name": "trace_label",
                 "associate_type": LABEL_ASSOCIATE_TYPE,
                 "data": {
-                    "text": "Recent RT trace: waiting",
+                    "text": build_context.get(
+                        "label_prefix",
+                        "Recent RT trace",
+                    ) + ": waiting",
                     "wraplength": build_context.get("trace_wraplength", 380),
+                    "label_prefix": build_context.get(
+                        "label_prefix",
+                        "Recent RT trace",
+                    ),
                 },
             },
         ],
@@ -209,6 +240,23 @@ def handle_demo_castle_message(castle, message):
         castle["state"]["press_count"] = 0
         castle["state"]["button_enabled"] = True
         rt.add_trace(f"{castle_label} handled reset_button")
+        return rt.HANDLED_DIRTY
+    elif (
+        message["type"] == "button_pressed"
+        and message["origin"] == "replace_trace_button"
+    ):
+        castle["state"]["trace_generation"] += 1
+        generation = castle["state"]["trace_generation"]
+        rt.target_castle(castle)
+        rt.schedule_replacement(
+            "trace_log_spot",
+            trace_log_castle_template,
+            {
+                "trace_wraplength": castle["state"]["trace_wraplength"],
+                "label_prefix": f"Recent RT trace #{generation}",
+            },
+        )
+        rt.add_trace(f"{castle_label} scheduled trace replacement #{generation}")
         return rt.HANDLED_DIRTY
     elif message["type"] == "window_resized":
         castle["state"]["window_width"] = message["payload"]["width"]
@@ -259,15 +307,16 @@ def handle_trace_log_castle_message(castle, message):
 
 def reconcile_trace_log_castle(castle):
     trace_label = rt.get_associate(castle, "trace_label")
+    label_prefix = trace_label["data"].get("label_prefix", "Recent RT trace")
     rt.target_associate(trace_label)
     recent_trace = rt.get_trace_entries()[-20:]
     if recent_trace:
         rt.set_data(
             "text",
-            "Recent RT trace:\n" + "\n".join(f"- {line}" for line in recent_trace),
+            f"{label_prefix}:\n" + "\n".join(f"- {line}" for line in recent_trace),
         )
     else:
-        rt.set_data("text", "Recent RT trace: waiting")
+        rt.set_data("text", f"{label_prefix}: waiting")
 
 
 def main():
