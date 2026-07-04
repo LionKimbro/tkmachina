@@ -48,3 +48,39 @@ This would clarify the roles:
 - RT moves messages
 - projectors compare desired/private against Tk
 
+
+## Codex Implementation Amendment
+
+ADR-0004 is approved for the current runtime.
+
+Associate records now separate state into three dictionaries:
+
+```python
+associate["desired"]   # values RT/castles want projected onto Tk
+associate["observed"]  # values reported by Tk or the associate's widget layer
+associate["private"]   # projector and widget bookkeeping
+```
+
+`associate_spec["desired"]` is the preferred way to declare initial projection
+targets. `associate_spec["observed"]` may declare initial observed values when
+needed. `associate_spec["private"]` is reserved for projector implementation
+details.
+
+For transition only, `associate_spec["data"]` is still accepted as a fallback
+source for `associate["desired"]` if `desired` is not provided.
+
+Runtime-facing mutation should use:
+
+```python
+rt.target_associate(associate)
+rt.set_desired("text", "Required (4 left)")
+```
+
+`rt.set_data(...)` remains as a temporary compatibility alias for
+`rt.set_desired(...)`.
+
+Castles should not write `associate["observed"]` directly. Observed values are
+owned by associates and their widget callbacks. If a castle needs to remember
+or interpret observed reality, it should receive a message and store the
+semantic interpretation in castle state.
+

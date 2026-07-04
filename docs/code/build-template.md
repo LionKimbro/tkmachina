@@ -376,7 +376,7 @@ Associate specs appear inside `associates` or inside another associate's
     "kind": "associate_spec",
     "name": "priority_button",
     "associate_type": BUTTON_ASSOCIATE_TYPE,
-    "data": {
+    "desired": {
         "text": "Required (5 left)",
         "enabled": True,
     },
@@ -442,7 +442,7 @@ Label data currently uses:
 }
 ```
 
-Window data currently uses:
+Window desired data currently uses:
 
 ```python
 {
@@ -451,9 +451,16 @@ Window data currently uses:
     "desired_height": 480,
     "min_width": 420,
     "min_height": 480,
+    "content_padding": 16,
+}
+```
+
+Window observed data may start with:
+
+```python
+{
     "actual_width": None,
     "actual_height": None,
-    "content_padding": 16,
 }
 ```
 

@@ -354,6 +354,10 @@ def allocate_associate_shell(
     parent_id,
 ):
     associate_id = make_id("associate")
+    desired = associate_spec.get("desired")
+    if desired is None:
+        desired = associate_spec.get("data", {})
+
     associate = {
         "kind": "associate",
         "id": associate_id,
@@ -362,7 +366,9 @@ def allocate_associate_shell(
         "host_castle": castle_id,
         "parent_associate": parent_id,
         "children": [],
-        "data": dict(associate_spec.get("data", {})),
+        "desired": dict(desired),
+        "observed": dict(associate_spec.get("observed", {})),
+        "private": dict(associate_spec.get("private", {})),
         "tk": None,
         "child_tk_parent": None,
         "layout": dict(associate_spec.get("layout", {})),
@@ -880,17 +886,41 @@ def target_associate(associate_or_id):
         current_target_associate = associate_or_id
 
 
-def set_data(key, value):
-    if current_target_associate is None:
-        raise RuntimeError("set_data called without target_associate")
+def resolve_associate(associate_or_id):
+    if isinstance(associate_or_id, str):
+        return associates[associate_or_id]
+    return associate_or_id
 
-    old_value = current_target_associate["data"].get(key)
+
+def get_desired(associate_or_id, key=None, default=None):
+    desired = resolve_associate(associate_or_id)["desired"]
+    if key is None:
+        return desired
+    return desired.get(key, default)
+
+
+def get_observed(associate_or_id, key=None, default=None):
+    observed = resolve_associate(associate_or_id)["observed"]
+    if key is None:
+        return observed
+    return observed.get(key, default)
+
+
+def set_desired(key, value):
+    if current_target_associate is None:
+        raise RuntimeError("set_desired called without target_associate")
+
+    old_value = current_target_associate["desired"].get(key)
     if old_value == value:
         return False
 
-    current_target_associate["data"][key] = value
+    current_target_associate["desired"][key] = value
     mark_dirty(current_target_associate)
     return True
+
+
+def set_data(key, value):
+    return set_desired(key, value)
 
 
 def mark_castle_dirty(castle_or_id):

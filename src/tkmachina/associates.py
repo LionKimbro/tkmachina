@@ -44,9 +44,10 @@ def make_label_associate_type():
 
 
 def setup_window_associate(associate, tk_master):
-    data = associate["data"]
+    desired = associate["desired"]
+    observed = associate["observed"]
     window = tk.Toplevel(tk_master)
-    content_frame = ttk.Frame(window, padding=data.get("content_padding", 0))
+    content_frame = ttk.Frame(window, padding=desired.get("content_padding", 0))
     content_frame.grid(row=0, column=0, sticky="nsew")
     window.columnconfigure(0, weight=1)
     window.rowconfigure(0, weight=1)
@@ -55,13 +56,13 @@ def setup_window_associate(associate, tk_master):
         if event.widget is not window:
             return
 
-        old_size = (data.get("actual_width"), data.get("actual_height"))
+        old_size = (observed.get("actual_width"), observed.get("actual_height"))
         new_size = (event.width, event.height)
         if old_size == new_size:
             return
 
-        data["actual_width"] = event.width
-        data["actual_height"] = event.height
+        observed["actual_width"] = event.width
+        observed["actual_height"] = event.height
         associate["outbox"].append(
             {
                 "kind": "event",
@@ -88,27 +89,28 @@ def setup_window_associate(associate, tk_master):
 
 
 def project_window_associate(associate):
-    data = associate["data"]
+    desired = associate["desired"]
+    private = associate["private"]
     window = associate["tk"]
 
-    if data.get("title") and window.title() != data["title"]:
-        window.title(data["title"])
+    if desired.get("title") and window.title() != desired["title"]:
+        window.title(desired["title"])
 
-    min_width = data.get("min_width")
-    min_height = data.get("min_height")
+    min_width = desired.get("min_width")
+    min_height = desired.get("min_height")
     if min_width is not None and min_height is not None:
         window.minsize(min_width, min_height)
 
-    desired_width = data.get("desired_width")
-    desired_height = data.get("desired_height")
+    desired_width = desired.get("desired_width")
+    desired_height = desired.get("desired_height")
     desired_size = (desired_width, desired_height)
     if (
         desired_width is not None
         and desired_height is not None
-        and data.get("_projected_size") != desired_size
+        and private.get("projected_size") != desired_size
     ):
         window.geometry(f"{desired_width}x{desired_height}")
-        data["_projected_size"] = desired_size
+        private["projected_size"] = desired_size
 
 
 def setup_button_associate(associate, tk_parent):
@@ -127,13 +129,13 @@ def setup_button_associate(associate, tk_parent):
 
 
 def project_button_associate(associate):
-    data = associate["data"]
+    desired = associate["desired"]
     widget = associate["tk"]
 
-    if widget.cget("text") != data["text"]:
-        widget.config(text=data["text"])
+    if widget.cget("text") != desired["text"]:
+        widget.config(text=desired["text"])
 
-    desired_state = "normal" if data.get("enabled", True) else "disabled"
+    desired_state = "normal" if desired.get("enabled", True) else "disabled"
     if widget.cget("state") != desired_state:
         widget.config(state=desired_state)
 
@@ -143,13 +145,13 @@ def setup_label_associate(associate, tk_parent):
 
 
 def project_label_associate(associate):
-    data = associate["data"]
+    desired = associate["desired"]
     widget = associate["tk"]
 
-    if widget.cget("text") != data["text"]:
-        widget.config(text=data["text"])
+    if widget.cget("text") != desired["text"]:
+        widget.config(text=desired["text"])
 
-    desired_wraplength = data.get("wraplength")
+    desired_wraplength = desired.get("wraplength")
     if (
         desired_wraplength is not None
         and widget.cget("wraplength") != desired_wraplength

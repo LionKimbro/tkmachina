@@ -338,7 +338,7 @@ Associate specs may be nested through `children`.
     "kind": "associate_spec",
     "name": "priority_button",
     "associate_type": BUTTON_ASSOCIATE_TYPE,
-    "data": {
+    "desired": {
         "text": "Required (5 left)",
         "enabled": True,
     },

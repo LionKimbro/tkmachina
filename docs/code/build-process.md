@@ -163,6 +163,9 @@ The castle is registered in `RT.castles` and its ID is appended to
 `allocate_associate_shell(...)` creates associate records from nested associate
 specs:
 
+If an associate spec still uses the older `data` key, the runtime treats it as
+initial `desired` data during this transition.
+
 ```python
 {
     "kind": "associate",
@@ -172,7 +175,9 @@ specs:
     "host_castle": castle_id,
     "parent_associate": parent_id,
     "children": [],
-    "data": dict(associate_spec.get("data", {})),
+    "desired": dict(associate_spec.get("desired", {})),
+    "observed": dict(associate_spec.get("observed", {})),
+    "private": dict(associate_spec.get("private", {})),
     "tk": None,
     "child_tk_parent": None,
     "layout": dict(associate_spec.get("layout", {})),
@@ -410,6 +415,9 @@ After activation, active castles process messages in
 During build, associates are first allocated as inactive records with no Tk
 widget. Later, `construct_widgets(build)` calls each associate type's `setup_fn`
 to create or attach the actual Tk widget.
+
+Associate records separate projection targets, widget observations, and
+projector bookkeeping into `desired`, `observed`, and `private`.
 
 Associate types live in `src/tkmachina/associates.py`. Current types include:
 

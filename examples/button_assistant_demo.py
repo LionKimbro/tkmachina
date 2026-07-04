@@ -51,22 +51,24 @@ def demo_template(build_context):
                 "kind": "associate_spec",
                 "name": "main_window",
                 "associate_type": WINDOW_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "title": "TkMachina RT Demo",
                     "desired_width": 460,
                     "desired_height": 480,
                     "min_width": 420,
                     "min_height": 480,
+                    "content_padding": 16,
+                },
+                "observed": {
                     "actual_width": None,
                     "actual_height": None,
-                    "content_padding": 16,
                 },
             },
             {
                 "kind": "associate_spec",
                 "name": "priority_button",
                 "associate_type": BUTTON_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "text": "Required (5 left)",
                     "enabled": True,
                 },
@@ -75,7 +77,7 @@ def demo_template(build_context):
                 "kind": "associate_spec",
                 "name": "count_label",
                 "associate_type": LABEL_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "text": "Castle state: press_count = 0",
                 },
             },
@@ -83,7 +85,7 @@ def demo_template(build_context):
                 "kind": "associate_spec",
                 "name": "size_label",
                 "associate_type": LABEL_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "text": "Window frame: waiting for resize event",
                 },
             },
@@ -91,7 +93,7 @@ def demo_template(build_context):
                 "kind": "associate_spec",
                 "name": "reset_button",
                 "associate_type": BUTTON_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "text": "Reset",
                     "enabled": True,
                 },
@@ -100,7 +102,7 @@ def demo_template(build_context):
                 "kind": "associate_spec",
                 "name": "replace_trace_button",
                 "associate_type": BUTTON_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "text": "Replace trace",
                     "enabled": True,
                 },
@@ -220,7 +222,7 @@ def trace_log_castle_template(build_context):
                 "kind": "associate_spec",
                 "name": "trace_label",
                 "associate_type": LABEL_ASSOCIATE_TYPE,
-                "data": {
+                "desired": {
                     "text": build_context.get(
                         "label_prefix",
                         "Recent RT trace",
@@ -286,21 +288,21 @@ def reconcile_demo_castle(castle):
     size_label = rt.get_associate(castle, "size_label")
 
     rt.target_associate(priority_button)
-    rt.set_data("enabled", state["button_enabled"])
+    rt.set_desired("enabled", state["button_enabled"])
     if state["button_enabled"]:
         remaining = 5 - state["press_count"]
-        rt.set_data("text", f"Required ({remaining} left)")
+        rt.set_desired("text", f"Required ({remaining} left)")
     else:
-        rt.set_data("text", "Required complete")
+        rt.set_desired("text", "Required complete")
 
     rt.target_associate(count_label)
-    rt.set_data("text", f"Castle state: press_count = {state['press_count']}")
+    rt.set_desired("text", f"Castle state: press_count = {state['press_count']}")
 
     rt.target_associate(size_label)
     if state["window_width"] is None or state["window_height"] is None:
-        rt.set_data("text", "Window frame: waiting for resize event")
+        rt.set_desired("text", "Window frame: waiting for resize event")
     else:
-        rt.set_data(
+        rt.set_desired(
             "text",
             f"Window frame: {state['window_width']} x {state['window_height']}",
         )
@@ -316,16 +318,16 @@ def handle_trace_log_castle_message(castle, message):
 
 def reconcile_trace_log_castle(castle):
     trace_label = rt.get_associate(castle, "trace_label")
-    label_prefix = trace_label["data"].get("label_prefix", "Recent RT trace")
+    label_prefix = trace_label["desired"].get("label_prefix", "Recent RT trace")
     rt.target_associate(trace_label)
     recent_trace = rt.get_trace_entries()[-20:]
     if recent_trace:
-        rt.set_data(
+        rt.set_desired(
             "text",
             f"{label_prefix}:\n" + "\n".join(f"- {line}" for line in recent_trace),
         )
     else:
-        rt.set_data("text", f"{label_prefix}: waiting")
+        rt.set_desired("text", f"{label_prefix}: waiting")
 
 
 def main():
