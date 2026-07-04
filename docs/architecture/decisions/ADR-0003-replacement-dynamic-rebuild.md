@@ -65,7 +65,7 @@ rt.schedule_clearing("trace_log_spot")
 rt.schedule_placement("trace_log_spot", child_castle)    [PS:]
 
   [PS:] actually:
-        rt_schedule_build("trace_log_spot", child_Castle_template)
+        rt.schedule_building("trace_log_spot", child_castle_template)
 ```
 
 The important architectural rule is that these operations are **scheduled**, not immediate.
@@ -255,7 +255,7 @@ scheduled mutations execute in order as lifecycle operations
 Therefore:
 
 * `schedule_clearing(...)` executes one clearing lifecycle operation when reached.
-* `schedule_build(...)` executes one building lifecycle operation when reached.
+* `schedule_building(...)` executes one building lifecycle operation when reached.
 * `schedule_replacement(...)` executes one replacement lifecycle operation when reached.
 
 Replacement remains local:

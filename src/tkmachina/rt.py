@@ -1,8 +1,8 @@
 """
-Tiny module-shaped runtime for the TkMachina demo.
+Tiny module-shaped runtime for TkMachina.
 
-RT is intentionally a module with global registries. The demo uses plain
-dictionaries and functions so the live object system stays visible.
+RT is intentionally a module with global registries. It uses plain dictionaries
+and functions so the live object system stays visible while the model evolves.
 """
 
 import tkinter as tk
@@ -808,7 +808,7 @@ def schedule_clearing(spot_name):
     trace.append(f"scheduled clearing {target['name']}.{spot_name}")
 
 
-def schedule_build(
+def schedule_building(
     spot_name,
     template_fn,
     build_context=None,
@@ -826,7 +826,7 @@ def schedule_build(
             "child_name": child_name or spot_name,
         }
     )
-    trace.append(f"scheduled build {target['name']}.{spot_name}")
+    trace.append(f"scheduled building {target['name']}.{spot_name}")
 
 
 def schedule_replacement(

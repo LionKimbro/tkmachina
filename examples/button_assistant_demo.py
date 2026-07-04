@@ -9,8 +9,17 @@ template describes -> RT builds -> RT wires -> RT activates -> associates emit
 
 from __future__ import annotations
 
-from associates import BUTTON_ASSOCIATE_TYPE, LABEL_ASSOCIATE_TYPE, WINDOW_ASSOCIATE_TYPE
-import rt
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from tkmachina import rt
+from tkmachina.associates import (
+    BUTTON_ASSOCIATE_TYPE,
+    LABEL_ASSOCIATE_TYPE,
+    WINDOW_ASSOCIATE_TYPE,
+)
 
 
 def demo_template(build_context):

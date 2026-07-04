@@ -1,7 +1,7 @@
 # Build Request
 
 This note documents the build request data structure submitted to the runtime
-build process in `examples/rt.py`.
+build process in `src/tkmachina/rt.py`.
 
 `docs/code/build-process.md` describes how the runtime processes a build. This
 document describes what a caller submits and what data that request carries.

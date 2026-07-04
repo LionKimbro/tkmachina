@@ -1,11 +1,11 @@
 # Build Process
 
 This note describes the current runtime build process in
-`examples/rt.py`, centered on `process_build(build)`.
+`src/tkmachina/rt.py`, centered on `process_build(build)`.
 
-It is an architecture note, not an API reference. The current code is still a
-runnable thought-object, so this document focuses on what the build process
-means, what it currently guarantees, and where the design is still provisional.
+It is an architecture note, not an API reference. The runtime is still evolving,
+so this document focuses on what the build process means, what it currently
+guarantees, and where the design is still provisional.
 
 ## Purpose
 
@@ -411,7 +411,7 @@ During build, associates are first allocated as inactive records with no Tk
 widget. Later, `construct_widgets(build)` calls each associate type's `setup_fn`
 to create or attach the actual Tk widget.
 
-Associate types live in `examples/associates.py`. Current types include:
+Associate types live in `src/tkmachina/associates.py`. Current types include:
 
 - `WINDOW_ASSOCIATE_TYPE`
 - `BUTTON_ASSOCIATE_TYPE`

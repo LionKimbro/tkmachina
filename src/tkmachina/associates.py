@@ -1,5 +1,5 @@
 """
-Associate type definitions for the TkMachina demo.
+Associate type definitions for TkMachina.
 
 Associates are the Little-Castle-side companions to Tk widgets. They own
 desired widget-facing data, translate raw Tk activity into semantic outbox
@@ -76,7 +76,7 @@ def setup_window_associate(associate, tk_master):
         )
 
     def on_close():
-        import rt
+        from tkmachina import rt
 
         rt.destroy_all()
         tk_master.destroy()
