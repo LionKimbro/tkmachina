@@ -146,3 +146,5 @@ if __name__ == "__main__":
     harness.add_test("button event updates label", test_button_event_updates_label())
     harness.run_host(entry, "x")
     harness.print_results()
+    if any(test["status"] != "success" for test in harness.tests):
+        raise SystemExit(1)

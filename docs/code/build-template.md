@@ -235,6 +235,7 @@ Current built-in event defaults:
 
 - `WINDOW_ASSOCIATE_TYPE`: `window_resized`
 - `BUTTON_ASSOCIATE_TYPE`: `button_pressed`
+- `ENTRY_ASSOCIATE_TYPE`: `submitted`
 - `LABEL_ASSOCIATE_TYPE`: no default events
 
 ## Child Castles
@@ -341,6 +342,12 @@ Every associate automatically gets a default route:
 
 ```text
 associate.outbox -> host_castle.inbox
+```
+
+Every child castle automatically gets a default bubble-up route:
+
+```text
+child_castle.outbox -> parent_castle.inbox
 ```
 
 Templates may also declare explicit routes:

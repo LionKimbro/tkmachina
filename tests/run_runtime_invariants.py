@@ -353,6 +353,29 @@ class RuntimeInvariantTests(unittest.TestCase):
         self.assertEqual(rt.castles[replacement_child_id]["template_name"], "replacement_child")
         self.assertEqual(parent["spots"]["child_spot"]["occupant"]["id"], replacement_child_id)
 
+    def test_child_castle_outbox_bubbles_to_parent_inbox(self):
+        build_template(parent_with_child_template)
+        parent = next(
+            castle for castle in rt.castles.values()
+            if castle["template_name"] == "parent_castle"
+        )
+        child = rt.castles[parent["children"]["child"]]
+
+        child["outbox"].append(
+            {
+                "kind": "event",
+                "type": "child_report",
+                "origin": "child",
+                "emitter": "child",
+                "payload": {"ok": True},
+            }
+        )
+        rt.deliver_messages()
+
+        self.assertEqual(len(parent["inbox"]), 1)
+        self.assertEqual(parent["inbox"][0]["type"], "child_report")
+        self.assertEqual(parent["inbox"][0]["payload"], {"ok": True})
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

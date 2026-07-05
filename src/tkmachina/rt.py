@@ -732,7 +732,28 @@ def wire_default_routes(build):
         routes.append(route)
         build["route_ids"].append(route_id)
 
-    trace.append("phase: wired default associate-to-castle routes")
+    for castle_id in build["castle_ids"]:
+        castle = castles[castle_id]
+        parent_id = castle.get("parent")
+        if parent_id is None:
+            continue
+
+        route_id = make_id("route")
+        route = {
+            "kind": "route",
+            "id": route_id,
+            "from_kind": "castle",
+            "from_id": castle_id,
+            "from_box": "outbox",
+            "to_kind": "castle",
+            "to_id": parent_id,
+            "to_box": "inbox",
+            "active": False,
+        }
+        routes.append(route)
+        build["route_ids"].append(route_id)
+
+    trace.append("phase: wired default associate and child-castle routes")
 
 
 def append_extra_routes(build):

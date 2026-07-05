@@ -46,6 +46,18 @@ def make_label_associate_type():
     }
 
 
+def make_entry_associate_type():
+    return {
+        "name": "entry",
+        "can_host_children": False,
+        "embeddable": True,
+        "default_events": ["submitted"],
+        "setup_fn": setup_entry_associate,
+        "project_fn": project_entry_associate,
+        "destroy_fn": destroy_entry_associate,
+    }
+
+
 def setup_window_associate(associate, tk_master):
     desired = associate["desired"]
     observed = associate["observed"]
@@ -164,11 +176,109 @@ def project_label_associate(associate):
         widget.config(wraplength=desired_wraplength)
 
 
+def setup_entry_associate(associate, tk_parent):
+    desired = associate["desired"]
+    observed = associate["observed"]
+    private = associate["private"]
+
+    text_var = tk.StringVar(value=desired.get("text", ""))
+    observed["text"] = text_var.get()
+    observed.setdefault("focused", False)
+    private["text_var"] = text_var
+    private["projected_text"] = text_var.get()
+    private["suppress_text_changed"] = False
+
+    widget = ttk.Entry(tk_parent, textvariable=text_var)
+
+    def emit(event_type, payload):
+        associate["outbox"].append(
+            {
+                "kind": "event",
+                "type": event_type,
+                "origin": associate["name"],
+                "emitter": associate["name"],
+                "payload": payload,
+            }
+        )
+
+    def on_text_changed(*_args):
+        text = text_var.get()
+        if observed.get("text") == text:
+            return
+
+        observed["text"] = text
+        if private.get("suppress_text_changed"):
+            return
+
+        if "text_changed" in associate["effective_events"]:
+            emit("text_changed", {"text": text})
+
+    def on_submitted(_event):
+        text = text_var.get()
+        observed["text"] = text
+        emit("submitted", {"text": text})
+        return "break"
+
+    def on_focus_changed(focused):
+        if observed.get("focused") == focused:
+            return
+
+        observed["focused"] = focused
+        emit("focus_changed", {"focused": focused})
+
+    if "text_changed" in associate["effective_events"]:
+        private["text_trace"] = text_var.trace_add("write", on_text_changed)
+    if "submitted" in associate["effective_events"]:
+        widget.bind("<Return>", on_submitted)
+    if "focus_changed" in associate["effective_events"]:
+        widget.bind("<FocusIn>", lambda _event: on_focus_changed(True))
+        widget.bind("<FocusOut>", lambda _event: on_focus_changed(False))
+
+    associate["tk"] = widget
+
+
+def project_entry_associate(associate):
+    desired = associate["desired"]
+    private = associate["private"]
+    widget = associate["tk"]
+    text_var = private["text_var"]
+
+    if "text" in desired and private.get("projected_text") != desired["text"]:
+        private["suppress_text_changed"] = True
+        text_var.set(desired["text"])
+        private["suppress_text_changed"] = False
+        associate["observed"]["text"] = desired["text"]
+        private["projected_text"] = desired["text"]
+
+    desired_state = "normal" if desired.get("enabled", True) else "disabled"
+    if widget.cget("state") != desired_state:
+        widget.config(state=desired_state)
+
+    desired_width = desired.get("width")
+    if desired_width is not None and widget.cget("width") != desired_width:
+        widget.config(width=desired_width)
+
+
 def destroy_widget_associate(associate):
     widget = associate.get("tk")
     if widget is not None:
         widget.destroy()
         associate["tk"] = None
+
+
+def destroy_entry_associate(associate):
+    private = associate["private"]
+    text_var = private.get("text_var")
+    text_trace = private.get("text_trace")
+    if text_var is not None and text_trace is not None:
+        try:
+            text_var.trace_remove("write", text_trace)
+        except tk.TclError:
+            pass
+
+    destroy_widget_associate(associate)
+    private.pop("text_var", None)
+    private.pop("text_trace", None)
 
 
 def destroy_window_associate(associate):
@@ -182,3 +292,4 @@ def destroy_window_associate(associate):
 WINDOW_ASSOCIATE_TYPE = make_window_associate_type()
 BUTTON_ASSOCIATE_TYPE = make_button_associate_type()
 LABEL_ASSOCIATE_TYPE = make_label_associate_type()
+ENTRY_ASSOCIATE_TYPE = make_entry_associate_type()

@@ -218,7 +218,13 @@ The build process creates one default route for every associate:
 associate.outbox -> host_castle.inbox
 ```
 
-It also appends explicit route specs from templates, including routes involving
+It also creates one default bubble-up route for every child castle:
+
+```text
+child_castle.outbox -> parent_castle.inbox
+```
+
+Then it appends explicit route specs from templates, including routes involving
 global castles such as `global_trace`.
 
 ## Step-By-Step Lifecycle
@@ -322,7 +328,7 @@ associate's concrete Tk widget.
 ### 10. Wire Routes
 
 `wire_default_routes(build)` creates associate outbox routes to host castle
-inboxes.
+inboxes and child castle outbox routes to parent castle inboxes.
 
 `append_extra_routes(build)` appends explicit template routes.
 
