@@ -4,6 +4,72 @@ This is a lightweight task ledger for design and implementation follow-up items.
 
 ## Open
 
+### Implement Frame Associate
+
+- Origin date: 2026-07-05
+- Source: manual/guidance3 follow-up
+- Status: Open
+- Priority: Next
+
+Implement a `frame` associate after the initial manual pass. It should provide
+a simple embeddable container associate that can host child spots without
+introducing a larger widget family design question.
+
+### Design And Implement Text Associate Family
+
+- Origin date: 2026-07-05
+- Source: guidance3 / ADR-0015
+- Status: Open
+
+Design Text-backed associates as a family of semantic promises rather than one
+monolithic `Text` wrapper.
+
+Candidate public associates to consider:
+
+- `plain_text_editor`
+- `log_view`
+- `rich_text_view`
+- `code_editor`
+
+Do not implement until the manual and associate reference format have been used
+to clarify the desired/observed/events contract for each candidate.
+
+### Design And Implement Tree Associate Family
+
+- Origin date: 2026-07-05
+- Source: guidance3 / ADR-0015
+- Status: Open
+
+Design Treeview-backed associates as multiple semantic contracts where needed.
+
+Candidate public associates to consider:
+
+- `tree_view`
+- `single_select_table`
+- `multi_select_table`
+- `sortable_table`
+
+Avoid creating one giant configurable tree/table associate before the public
+promises are clear.
+
+### Design And Implement Canvas Associate Family
+
+- Origin date: 2026-07-05
+- Source: guidance3 / ADR-0015
+- Status: Open
+
+Investigate whether Canvas should be one associate or a family of associates.
+
+Candidate public associates to consider:
+
+- `canvas_drawing_surface`
+- `vector_canvas`
+- `scene_canvas`
+- `diagram_canvas`
+
+Canvas may need an operation model or scene model rather than simple full-state
+projection.
+
 ### Review Naming Case Policy
 
 - Origin date: 2026-07-05

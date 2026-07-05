@@ -33,6 +33,7 @@ review it in, and what current posture seems reasonable.
 | ADR-0012 | Spots And Placements For Castle Layout | Implemented | P1 | Castles declare beings separately from places: `associates`, `child_castles`, `spots`, and `placements`. | [Spots And Placements For Castle Layout](decisions/ADR-0012-spots-and-placements-for-castle-layout.md) |
 | ADR-0013 | Scheduled Mutations Execute As Ordered Lifecycle Operations | Implemented | P1 | Scheduled clearing, building, and replacement execute in queue order as local lifecycle operations. | [Scheduled Mutations Execute As Ordered Lifecycle Operations](decisions/ADR-0013-scheduled-mutations-execute-as-ordered.md) |
 | ADR-0014 | Associate Observed State Contract | Implemented | P2 | `observed` is a public modeled-observation surface, not a complete Tk mirror; raw Tk remains an escape hatch. | [Associate Observed State Contract](decisions/ADR-0014-associate-observed-state-contract.md) |
+| ADR-0015 | Associate Types Are Semantic Contracts | Accepted | P2 | Associate types are defined by Little Castles promises, not by one-to-one Tk widget mapping. | [Associate Types Are Semantic Contracts](decisions/ADR-0015-associate-types-are-semantic-contracts.md) |
 
 ## Next Review Questions
 
