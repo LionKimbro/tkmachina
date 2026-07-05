@@ -33,3 +33,26 @@ registered_associate_types["button"]
 The current system has runtime-owned construction. A future version may need
 runtime-owned construction from declarative specs.
 
+## Decision
+
+Deferred.
+
+The current system does not require fully serializable build specs.
+
+The near-term goal is modular Python portability. Castle templates, handlers,
+reconcilers, and associate types should be movable between projects through
+normal Python imports and light registration.
+
+A future runtime may support declarative or serializable specs using registry
+names instead of direct Python references, but that is not required for the
+current thought-object phase.
+
+For now, direct Python references remain acceptable for:
+
+- `template_fn`
+- `handle_fn`
+- `reconcile_fn`
+- `associate_type`
+
+This ADR does not require a registry system yet.
+

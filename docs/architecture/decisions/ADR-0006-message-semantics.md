@@ -41,3 +41,28 @@ with:
 - keyboard focus events
 - save/load operations
 
+
+## Decision
+
+Accepted as a vocabulary concern.
+
+No immediate implementation is required.
+
+Current messages may remain:
+
+```python
+{"kind": "event", ...}
+```
+
+Future work should introduce `command`, `request`, `response`, or `fault` only
+when a real use case requires different handling semantics.
+
+Until then, `event` is sufficient for messages such as:
+
+- `button_pressed`
+- `window_resized`
+- `trace_changed`
+
+This ADR records the distinction as design vocabulary, not as a required
+runtime mechanism.
+

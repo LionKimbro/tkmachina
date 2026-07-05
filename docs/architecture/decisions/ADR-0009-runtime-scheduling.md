@@ -33,3 +33,21 @@ Only schedule a tick when there is work:
 
 For now, the polling loop makes the machine easy to see.
 
+## Status
+
+Rejected.
+
+## Decision
+
+Keep the fixed runtime heartbeat.
+
+The current polling loop is intentional because it keeps the runtime phase
+order visible, predictable, and easy to debug.
+
+Do not replace it with conditional tick scheduling unless there is a
+demonstrated performance or integration problem.
+
+Future work may add alternate host-controlled modes, such as manual tick or a
+configurable interval, but the default runtime remains a simple fixed
+heartbeat.
+
