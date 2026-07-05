@@ -9,6 +9,8 @@ This is a lightweight task ledger for design and implementation follow-up items.
 - Origin date: 2026-07-05
 - Source: ADR-0010 Test Harness
 - Status: Open
+- Progress: Initial fake-associate invariant suite added in
+  `tests/run_runtime_invariants.py` on 2026-07-05.
 
 Create fast runtime tests that exercise RT behavior without depending on real
 Tk widgets where possible.
@@ -38,6 +40,8 @@ checked directly and quickly.
 - Origin date: 2026-07-05
 - Source: ADR-0010 Test Harness
 - Status: Open
+- Progress: Initial hosted Tk test added in `guitests/test_runtime_hosted.py`
+  on 2026-07-05.
 
 Create event-loop-native Tk tests for behavior that requires the real Tk
 lifecycle. These tests may use `tkintertester` or a compatible harness.
