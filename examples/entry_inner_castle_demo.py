@@ -166,7 +166,7 @@ def entry_panel_template(_build_context=None):
                 "kind": "associate_spec",
                 "name": "entry",
                 "associate_type": ENTRY_ASSOCIATE_TYPE,
-                "events": ["text_changed", "focus_changed"],
+                "events": ["text_changed", "focused", "unfocused"],
                 "desired": {
                     "text": "",
                     "width": 42,
@@ -177,7 +177,7 @@ def entry_panel_template(_build_context=None):
 
 
 def handle_entry_panel_message(castle, message):
-    if message["type"] not in ("submitted", "text_changed", "focus_changed"):
+    if message["type"] not in ("submitted", "text_changed", "focused", "unfocused"):
         return rt.IGNORED
 
     payload = dict(message["payload"])
@@ -185,7 +185,8 @@ def handle_entry_panel_message(castle, message):
         castle["state"]["text"] = payload["text"]
     if message["type"] == "submitted":
         castle["state"]["submitted"] = payload["text"]
-    if message["type"] == "focus_changed":
+    if message["type"] in ("focused", "unfocused"):
+        payload["focused"] = message["type"] == "focused"
         castle["state"]["focused"] = payload["focused"]
 
     castle["outbox"].append(
@@ -213,7 +214,7 @@ def handle_outer_message(castle, message):
         castle["state"]["latest_text"] = payload["text"]
     if payload["entry_event"] == "submitted":
         castle["state"]["submitted_text"] = payload["text"]
-    if payload["entry_event"] == "focus_changed":
+    if payload["entry_event"] in ("focused", "unfocused"):
         castle["state"]["focused"] = "yes" if payload["focused"] else "no"
     return rt.HANDLED_DIRTY
 

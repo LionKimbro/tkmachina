@@ -4,6 +4,19 @@ This is a lightweight task ledger for design and implementation follow-up items.
 
 ## Open
 
+### Review Naming Case Policy
+
+- Origin date: 2026-07-05
+- Source: implementation follow-up
+- Status: Open
+
+Check the project for inconsistent use of kebab-case, snake_case, and other
+name styles across files, docs, runtime records, event names, and public APIs.
+
+Define the intended policy before changing names. In particular, decide where
+Python `snake_case` is required, where document/file `kebab-case` is preferred,
+and whether semantic event names should consistently remain `snake_case`.
+
 ### Implement ADR-0010 Runtime Invariant Tests
 
 - Origin date: 2026-07-05

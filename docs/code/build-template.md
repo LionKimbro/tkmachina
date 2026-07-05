@@ -194,7 +194,7 @@ Associate specs may opt into or suppress semantic events:
     "name": "search_box",
     "associate_type": ENTRY_ASSOCIATE_TYPE,
     "events": ["text_changed", "submitted"],
-    "do_not_listen": ["focus_changed"],
+    "do_not_listen": ["focused", "unfocused"],
 }
 ```
 
@@ -203,6 +203,18 @@ The runtime computes `effective_events` from the associate type's
 
 Associate setup functions should bind or emit only semantic events included in
 `effective_events`.
+
+Several boring common Tk events are available through shared associate helper
+binders rather than type-specific binding code:
+
+- `focused` / `unfocused`
+- `pointer_entered` / `pointer_left`
+- `clicked`, `double_clicked`, `middle_clicked`, `right_clicked`
+- `key_pressed` / `key_released`
+- `configured`
+
+These common events are opt-in unless an associate type deliberately lists one
+in `default_events`.
 
 ## Associate Types
 

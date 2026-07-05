@@ -58,6 +58,162 @@ def make_entry_associate_type():
     }
 
 
+def wants_event(associate, event_type):
+    return event_type in associate.get("effective_events", set())
+
+
+def emit_event(associate, event_type, payload=None):
+    associate["outbox"].append(
+        {
+            "kind": "event",
+            "type": event_type,
+            "origin": associate["name"],
+            "emitter": associate["name"],
+            "payload": payload or {},
+        }
+    )
+
+
+def bind_common_widget_events(associate):
+    bind_focus_events(associate)
+    bind_pointer_enter_leave_events(associate)
+    bind_mouse_click_events(associate)
+    bind_key_events(associate)
+    bind_configure_event(associate)
+
+
+def bind_focus_events(associate):
+    widget = associate["tk"]
+
+    if wants_event(associate, "focused"):
+        widget.bind(
+            "<FocusIn>",
+            lambda _event: handle_common_focus_event(associate, True),
+            add="+",
+        )
+
+    if wants_event(associate, "unfocused"):
+        widget.bind(
+            "<FocusOut>",
+            lambda _event: handle_common_focus_event(associate, False),
+            add="+",
+        )
+
+
+def handle_common_focus_event(associate, focused):
+    if associate["observed"].get("focused") == focused:
+        return
+
+    associate["observed"]["focused"] = focused
+    emit_event(associate, "focused" if focused else "unfocused")
+
+
+def bind_pointer_enter_leave_events(associate):
+    widget = associate["tk"]
+
+    if wants_event(associate, "pointer_entered"):
+        widget.bind(
+            "<Enter>",
+            lambda event: emit_event(associate, "pointer_entered", pointer_payload(event)),
+            add="+",
+        )
+
+    if wants_event(associate, "pointer_left"):
+        widget.bind(
+            "<Leave>",
+            lambda event: emit_event(associate, "pointer_left", pointer_payload(event)),
+            add="+",
+        )
+
+
+def bind_mouse_click_events(associate):
+    widget = associate["tk"]
+
+    if wants_event(associate, "clicked"):
+        widget.bind(
+            "<Button-1>",
+            lambda event: emit_event(associate, "clicked", pointer_payload(event)),
+            add="+",
+        )
+
+    if wants_event(associate, "double_clicked"):
+        widget.bind(
+            "<Double-Button-1>",
+            lambda event: emit_event(associate, "double_clicked", pointer_payload(event)),
+            add="+",
+        )
+
+    if wants_event(associate, "middle_clicked"):
+        widget.bind(
+            "<Button-2>",
+            lambda event: emit_event(associate, "middle_clicked", pointer_payload(event)),
+            add="+",
+        )
+
+    if wants_event(associate, "right_clicked"):
+        widget.bind(
+            "<Button-3>",
+            lambda event: emit_event(associate, "right_clicked", pointer_payload(event)),
+            add="+",
+        )
+
+
+def bind_key_events(associate):
+    widget = associate["tk"]
+
+    if wants_event(associate, "key_pressed"):
+        widget.bind(
+            "<KeyPress>",
+            lambda event: emit_event(associate, "key_pressed", key_payload(event)),
+            add="+",
+        )
+
+    if wants_event(associate, "key_released"):
+        widget.bind(
+            "<KeyRelease>",
+            lambda event: emit_event(associate, "key_released", key_payload(event)),
+            add="+",
+        )
+
+
+def bind_configure_event(associate):
+    if not wants_event(associate, "configured"):
+        return
+
+    associate["tk"].bind(
+        "<Configure>",
+        lambda event: emit_event(associate, "configured", configure_payload(event)),
+        add="+",
+    )
+
+
+def pointer_payload(event):
+    return {
+        "x": event.x,
+        "y": event.y,
+        "x_root": event.x_root,
+        "y_root": event.y_root,
+    }
+
+
+def key_payload(event):
+    return {
+        "keysym": event.keysym,
+        "char": event.char,
+        "keycode": event.keycode,
+        "state": event.state,
+    }
+
+
+def configure_payload(event):
+    return {
+        "width": event.width,
+        "height": event.height,
+        "x": event.x,
+        "y": event.y,
+    }
+
+
 def setup_window_associate(associate, tk_master):
     desired = associate["desired"]
     observed = associate["observed"]
@@ -78,17 +234,13 @@ def setup_window_associate(associate, tk_master):
 
         observed["actual_width"] = event.width
         observed["actual_height"] = event.height
-        associate["outbox"].append(
+        emit_event(
+            associate,
+            "window_resized",
             {
-                "kind": "event",
-                "type": "window_resized",
-                "origin": associate["name"],
-                "emitter": associate["name"],
-                "payload": {
-                    "width": event.width,
-                    "height": event.height,
-                },
-            }
+                "width": event.width,
+                "height": event.height,
+            },
         )
 
     def on_close():
@@ -102,6 +254,7 @@ def setup_window_associate(associate, tk_master):
     window.protocol("WM_DELETE_WINDOW", on_close)
     associate["tk"] = window
     associate["child_tk_parent"] = content_frame
+    bind_common_widget_events(associate)
 
 
 def project_window_associate(associate):
@@ -131,18 +284,11 @@ def project_window_associate(associate):
 
 def setup_button_associate(associate, tk_parent):
     def on_click():
-        associate["outbox"].append(
-            {
-                "kind": "event",
-                "type": "button_pressed",
-                "origin": associate["name"],
-                "emitter": associate["name"],
-                "payload": {},
-            }
-        )
+        emit_event(associate, "button_pressed")
 
     command = on_click if "button_pressed" in associate["effective_events"] else None
     associate["tk"] = ttk.Button(tk_parent, command=command)
+    bind_common_widget_events(associate)
 
 
 def project_button_associate(associate):
@@ -159,6 +305,7 @@ def project_button_associate(associate):
 
 def setup_label_associate(associate, tk_parent):
     associate["tk"] = ttk.Label(tk_parent, justify="left")
+    bind_common_widget_events(associate)
 
 
 def project_label_associate(associate):
@@ -183,23 +330,11 @@ def setup_entry_associate(associate, tk_parent):
 
     text_var = tk.StringVar(value=desired.get("text", ""))
     observed["text"] = text_var.get()
-    observed.setdefault("focused", False)
     private["text_var"] = text_var
     private["projected_text"] = text_var.get()
     private["suppress_text_changed"] = False
 
     widget = ttk.Entry(tk_parent, textvariable=text_var)
-
-    def emit(event_type, payload):
-        associate["outbox"].append(
-            {
-                "kind": "event",
-                "type": event_type,
-                "origin": associate["name"],
-                "emitter": associate["name"],
-                "payload": payload,
-            }
-        )
 
     def on_text_changed(*_args):
         text = text_var.get()
@@ -210,31 +345,22 @@ def setup_entry_associate(associate, tk_parent):
         if private.get("suppress_text_changed"):
             return
 
-        if "text_changed" in associate["effective_events"]:
-            emit("text_changed", {"text": text})
+        if wants_event(associate, "text_changed"):
+            emit_event(associate, "text_changed", {"text": text})
 
     def on_submitted(_event):
         text = text_var.get()
         observed["text"] = text
-        emit("submitted", {"text": text})
+        emit_event(associate, "submitted", {"text": text})
         return "break"
 
-    def on_focus_changed(focused):
-        if observed.get("focused") == focused:
-            return
-
-        observed["focused"] = focused
-        emit("focus_changed", {"focused": focused})
-
-    if "text_changed" in associate["effective_events"]:
+    if wants_event(associate, "text_changed"):
         private["text_trace"] = text_var.trace_add("write", on_text_changed)
-    if "submitted" in associate["effective_events"]:
-        widget.bind("<Return>", on_submitted)
-    if "focus_changed" in associate["effective_events"]:
-        widget.bind("<FocusIn>", lambda _event: on_focus_changed(True))
-        widget.bind("<FocusOut>", lambda _event: on_focus_changed(False))
+    if wants_event(associate, "submitted"):
+        widget.bind("<Return>", on_submitted, add="+")
 
     associate["tk"] = widget
+    bind_common_widget_events(associate)
 
 
 def project_entry_associate(associate):
@@ -245,8 +371,10 @@ def project_entry_associate(associate):
 
     if "text" in desired and private.get("projected_text") != desired["text"]:
         private["suppress_text_changed"] = True
-        text_var.set(desired["text"])
-        private["suppress_text_changed"] = False
+        try:
+            text_var.set(desired["text"])
+        finally:
+            private["suppress_text_changed"] = False
         associate["observed"]["text"] = desired["text"]
         private["projected_text"] = desired["text"]
 
@@ -279,6 +407,8 @@ def destroy_entry_associate(associate):
     destroy_widget_associate(associate)
     private.pop("text_var", None)
     private.pop("text_trace", None)
+    private.pop("projected_text", None)
+    private.pop("suppress_text_changed", None)
 
 
 def destroy_window_associate(associate):

@@ -117,7 +117,7 @@ def test_submitted_bubbles_to_outer_castle():
     return [step_type_and_focus, step_submit, step_pump, step_verify]
 
 
-def test_focus_changed_bubbles_to_outer_castle():
+def test_focused_bubbles_to_outer_castle():
     def step_focus():
         app["entry"]["tk"].event_generate("<FocusIn>")
         return ("next", None)
@@ -139,7 +139,8 @@ def test_entry_effective_events_include_opt_ins():
         if app["entry"]["effective_events"] == {
             "submitted",
             "text_changed",
-            "focus_changed",
+            "focused",
+            "unfocused",
         }:
             return ("success", None)
         return ("fail", f"unexpected events: {app['entry']['effective_events']!r}")
@@ -152,7 +153,7 @@ if __name__ == "__main__":
     harness.set_resetfn(reset)
     harness.add_test("entry text_changed bubbles to outer castle", test_text_changed_bubbles_to_outer_castle())
     harness.add_test("entry submitted bubbles to outer castle", test_submitted_bubbles_to_outer_castle())
-    harness.add_test("entry focus_changed bubbles to outer castle", test_focus_changed_bubbles_to_outer_castle())
+    harness.add_test("entry focused bubbles to outer castle", test_focused_bubbles_to_outer_castle())
     harness.add_test("entry effective events include opt-ins", test_entry_effective_events_include_opt_ins())
     harness.run_host(entry, "x")
     harness.print_results()

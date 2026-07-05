@@ -112,7 +112,8 @@ Examples of noisy or optional events include:
 ```text
 pointer_moved
 key_pressed
-focus_changed
+focused
+unfocused
 text_changed
 scroll_changed
 selection_changed
@@ -204,3 +205,20 @@ source's messages to different destinations.
 
 The implementation remains small and practical while preserving room for richer
 event routing later.
+
+## Implementation Note: Common Widget Events
+
+TkMachina now centralizes boring common Tk bindings in reusable associate
+helpers rather than reimplementing them separately in every associate type.
+
+The current common helper events are:
+
+- `focused` / `unfocused`
+- `pointer_entered` / `pointer_left`
+- `clicked`, `double_clicked`, `middle_clicked`, `right_clicked`
+- `key_pressed` / `key_released`
+- `configured`
+
+These remain opt-in unless an associate type deliberately includes one in
+`default_events`. Associate-specific events such as `button_pressed`,
+`submitted`, and `text_changed` still belong to the relevant associate type.
