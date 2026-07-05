@@ -177,9 +177,9 @@ Associate shells are allocated from `spec["associates"]`:
 }
 ```
 
-`desired` is the projection target. `observed` is public runtime-facing widget
-reality maintained by the associate. `private` is projector/widget
-bookkeeping and is not a castle-author surface.
+`desired` is the projection target. `observed` is the associate's public
+modeled-observation surface, not a complete mirror of Tk. `private` is
+projector/widget bookkeeping and is not a castle-author surface.
 
 Event interest controls message emission, not whether observed state is
 maintained.

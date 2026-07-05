@@ -158,9 +158,10 @@ Examples:
 
 ### Observed
 
-`observed` is public runtime-facing widget reality maintained by the associate.
-Castle authors may read ordinary facts from it so they do not need to inspect
-raw Tk widgets for normal use.
+`observed` is the associate's public modeled-observation surface, not a
+complete mirror of Tk. Castle authors may read intentionally maintained
+ordinary facts from it so they rarely need to inspect raw Tk widgets for normal
+use.
 
 Example:
 
@@ -179,6 +180,11 @@ Event interest does not decide whether observed state is maintained. Event
 interest decides whether semantic messages are emitted. For example, an Entry
 associate should keep `observed["text"]` current even when it is not emitting
 `text_changed` messages.
+
+Raw Tk access through `associate["tk"]` remains available as an escape hatch for
+rare, advanced, or unmodeled behavior. If authors repeatedly need raw Tk for an
+ordinary use case, that is evidence that the associate type should gain a
+modeled desired field, observed field, or event.
 
 ### Private
 
