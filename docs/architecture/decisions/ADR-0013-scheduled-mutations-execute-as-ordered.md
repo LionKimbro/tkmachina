@@ -1,6 +1,6 @@
 # ADR-0013: Scheduled Mutations Execute as Ordered Lifecycle Operations
 
-Status: Proposed
+Status: Implemented
 
 Date: 2026-07-04
 

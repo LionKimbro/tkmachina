@@ -344,6 +344,14 @@ def allocate_associate_shells(build):
         allocate_castle_associate_shells(build, castle_id)
 
 
+def compute_effective_events(associate_spec):
+    associate_type = associate_spec["associate_type"]
+    default_events = set(associate_type.get("default_events", []))
+    enabled_events = set(associate_spec.get("events", []))
+    suppressed_events = set(associate_spec.get("do_not_listen", []))
+    return (default_events | enabled_events) - suppressed_events
+
+
 def allocate_castle_associate_shells(build, castle_id):
     spec = build["castle_specs"][castle_id]
     castle = castles[castle_id]
@@ -382,6 +390,9 @@ def allocate_associate_shell(
         "desired": dict(desired),
         "observed": dict(associate_spec.get("observed", {})),
         "private": dict(associate_spec.get("private", {})),
+        "events": list(associate_spec.get("events", [])),
+        "do_not_listen": list(associate_spec.get("do_not_listen", [])),
+        "effective_events": compute_effective_events(associate_spec),
         "tk": None,
         "child_tk_parent": None,
         "layout": dict(associate_spec.get("layout", {})),

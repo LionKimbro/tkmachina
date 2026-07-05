@@ -1,62 +1,136 @@
 # ADR-0011: Event Interest And Filtering
 
-## Discussion Item
+## Status
 
-As TkMachina grows broader coverage over the Tkinter widget set, the runtime
-will likely see a deluge of raw widget activity and semantic events.
+Approved for minimal implementation.
 
-The system needs a way to express:
+## Guidance
 
-```text
-We are interested in these events.
-We are not interested in those events.
-```
+As TkMachina grows broader coverage over the Tkinter widget set, associates
+must not emit every possible semantic event by default.
 
-Without this, associates may emit too many messages, routes may deliver too
-much traffic, and castles may be forced to ignore large amounts of irrelevant
-activity.
-
-## Pressure
-
-Richer widgets can produce many kinds of activity:
-
-- focus changes
-- key presses
-- pointer motion
-- selection changes
-- scroll activity
-- validation events
-- edit events
-- resize/configure events
-- command invocations
-- variable changes
+Richer widgets can produce many kinds of activity: focus changes, key presses,
+pointer motion, selection changes, scroll activity, validation events, edit
+events, resize/configure events, command invocations, variable changes, and
+more.
 
 Some castles care about only a small subset of those events.
 
-## Open Questions
+TkMachina therefore needs a simple event-interest system.
 
-- Is event interest declared by the associate spec, the castle spec, the route
-  spec, or all three?
-- Should filtering happen before an associate emits a message?
-- Should filtering happen during route delivery?
-- Should castles receive everything and explicitly return `rt.IGNORED`?
-- What defaults keep simple demos simple?
-- Is event interest expressed in terms of raw Tk events, semantic message
-  types, or both?
+## Decision
 
-## Possible Shapes
+Event interest is declared primarily at the associate level.
 
-Associate-level interest:
+Each associate type may define events that are enabled by default:
+
+```python
+{
+    "name": "button",
+    "default_events": ["button_pressed"],
+    ...
+}
+```
+
+Each associate instance may explicitly enable additional semantic events:
 
 ```python
 {
     "kind": "associate_spec",
     "name": "search_box",
+    "associate_type": ENTRY_ASSOCIATE_TYPE,
     "events": ["text_changed", "submitted"],
 }
 ```
 
-Route-level filtering:
+Each associate instance may also explicitly suppress events, including events
+that would otherwise be enabled by default:
+
+```python
+{
+    "kind": "associate_spec",
+    "name": "main_window",
+    "associate_type": WINDOW_ASSOCIATE_TYPE,
+    "do_not_listen": ["window_resized"],
+}
+```
+
+The effective event set for an associate is:
+
+```text
+effective_events =
+    associate_type.default_events
+    union associate_spec.events
+    minus associate_spec.do_not_listen
+```
+
+In Python terms:
+
+```python
+effective_events = (
+    set(associate_type.get("default_events", []))
+    | set(associate_spec.get("events", []))
+) - set(associate_spec.get("do_not_listen", []))
+```
+
+Associate setup functions should bind/listen only for events in the
+associate's effective event set.
+
+## Semantics
+
+`default_events` belongs to the associate type.
+
+It expresses the ordinary, expected semantic events for that kind of associate.
+
+For example, a button normally emits `button_pressed`. A basic window associate
+may normally emit `window_resized`. A text entry might default only to
+`submitted`, while requiring explicit opt-in for noisy events such as
+`text_changed`.
+
+`events` belongs to the associate instance.
+
+It expresses additional semantic events this particular associate wants
+enabled.
+
+`do_not_listen` also belongs to the associate instance.
+
+It forcibly disables semantic events for this particular associate, even if
+those events were enabled by the associate type's defaults.
+
+## Defaults
+
+Simple demos should remain simple.
+
+A normal button should not require event configuration just to emit
+`button_pressed`.
+
+Noisy events should generally not be default-enabled unless they are essential
+to the identity of the associate type.
+
+Examples of noisy or optional events include:
+
+```text
+pointer_moved
+key_pressed
+focus_changed
+text_changed
+scroll_changed
+selection_changed
+```
+
+These should usually require explicit opt-in from the associate spec.
+
+## Filtering Location
+
+Filtering should happen as early as practical.
+
+Associates should avoid binding to raw Tk events and avoid emitting semantic
+messages unless those semantic events are in their effective event set.
+
+This avoids unnecessary message traffic and prevents castles from being forced
+to ignore floods of irrelevant activity.
+
+Route-level filtering may still be added separately:
 
 ```python
 {
@@ -67,21 +141,66 @@ Route-level filtering:
 }
 ```
 
-Castle-level interest:
+If route-level filtering exists, it controls delivery, not emission.
 
-```python
-{
-    "kind": "castle_spec",
-    "name": "search_castle",
-    "interests": ["submitted", "selection_changed"],
-}
+The distinction is:
+
+```text
+associate event interest controls what gets emitted
+route type filtering controls what gets delivered
+castle handlers control what gets interpreted
 ```
 
-## Current Posture
+## Deferred
 
-Do not implement this yet.
+Castle-level interest declarations are deferred.
 
-Keep the current message flow simple while the core runtime cycle, hierarchy,
-replacement, state boundaries, and tests settle. Revisit before the associate
-library covers enough Tk widgets to create noisy event streams.
+For now, if a castle receives a message, it may handle it or return
+`rt.IGNORED`.
 
+The system should not introduce a third filtering layer until there is a
+concrete need.
+
+## Raw Tk Events vs. Semantic Events
+
+Event interest should be expressed in semantic TkMachina message types, not raw
+Tk event names.
+
+For example:
+
+```text
+text_changed
+submitted
+button_pressed
+window_resized
+selection_changed
+```
+
+not:
+
+```text
+<KeyRelease>
+<Return>
+<Button-1>
+<Configure>
+<<TreeviewSelect>>
+```
+
+Associate types remain responsible for translating raw Tk activity into
+semantic TkMachina messages.
+
+## Consequences
+
+Associates avoid producing unwanted event traffic.
+
+Simple widgets remain simple.
+
+Noisy widgets become controllable.
+
+Castles are not forced to ignore large volumes of irrelevant messages.
+
+Route filtering can still be used later to direct different subsets of one
+source's messages to different destinations.
+
+The implementation remains small and practical while preserving room for richer
+event routing later.

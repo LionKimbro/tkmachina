@@ -165,6 +165,9 @@ Associate shells are allocated from `spec["associates"]`:
     "desired": {...},
     "observed": {...},
     "private": {...},
+    "events": [...],
+    "do_not_listen": [...],
+    "effective_events": {...},
     "tk": None,
     "child_tk_parent": None,
     "layout": {...},
@@ -176,6 +179,11 @@ Associate shells are allocated from `spec["associates"]`:
 
 `desired` is the projection target. `observed` is raw-ish GUI reality reported
 by the associate. `private` is projector/widget bookkeeping.
+
+`events` and `do_not_listen` are copied from the associate spec.
+`effective_events` is computed from the associate type's `default_events`,
+plus `events`, minus `do_not_listen`. Associate setup functions use this set to
+avoid binding or emitting semantic events the instance did not ask for.
 
 During transition, `associate_spec["data"]` is still accepted as a fallback
 source for `desired` if `desired` is absent.

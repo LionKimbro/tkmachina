@@ -15,6 +15,7 @@ def make_window_associate_type():
         "name": "window",
         "can_host_children": True,
         "embeddable": False,
+        "default_events": ["window_resized"],
         "setup_fn": setup_window_associate,
         "project_fn": project_window_associate,
         "destroy_fn": destroy_window_associate,
@@ -26,6 +27,7 @@ def make_button_associate_type():
         "name": "button",
         "can_host_children": False,
         "embeddable": True,
+        "default_events": ["button_pressed"],
         "setup_fn": setup_button_associate,
         "project_fn": project_button_associate,
         "destroy_fn": destroy_widget_associate,
@@ -37,6 +39,7 @@ def make_label_associate_type():
         "name": "label",
         "can_host_children": False,
         "embeddable": True,
+        "default_events": [],
         "setup_fn": setup_label_associate,
         "project_fn": project_label_associate,
         "destroy_fn": destroy_widget_associate,
@@ -82,7 +85,8 @@ def setup_window_associate(associate, tk_master):
         rt.destroy_all()
         tk_master.destroy()
 
-    window.bind("<Configure>", on_configure)
+    if "window_resized" in associate["effective_events"]:
+        window.bind("<Configure>", on_configure)
     window.protocol("WM_DELETE_WINDOW", on_close)
     associate["tk"] = window
     associate["child_tk_parent"] = content_frame
@@ -125,7 +129,8 @@ def setup_button_associate(associate, tk_parent):
             }
         )
 
-    associate["tk"] = ttk.Button(tk_parent, command=on_click)
+    command = on_click if "button_pressed" in associate["effective_events"] else None
+    associate["tk"] = ttk.Button(tk_parent, command=command)
 
 
 def project_button_associate(associate):

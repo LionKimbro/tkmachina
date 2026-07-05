@@ -132,6 +132,13 @@ The current runtime copies these spec sections into associate records:
 "desired": dict(associate_spec.get("desired", ...))
 "observed": dict(associate_spec.get("observed", {}))
 "private": dict(associate_spec.get("private", {}))
+"events": list(associate_spec.get("events", []))
+"do_not_listen": list(associate_spec.get("do_not_listen", []))
+"effective_events": (
+    associate_type.default_events
+    union associate_spec.events
+    minus associate_spec.do_not_listen
+)
 ```
 
 During transition, `data` may be used as a fallback source for `desired`, but
@@ -177,6 +184,26 @@ Example:
 
 Templates usually do not need to initialize `private`.
 
+### Event Interest
+
+Associate specs may opt into or suppress semantic events:
+
+```python
+{
+    "kind": "associate_spec",
+    "name": "search_box",
+    "associate_type": ENTRY_ASSOCIATE_TYPE,
+    "events": ["text_changed", "submitted"],
+    "do_not_listen": ["focus_changed"],
+}
+```
+
+The runtime computes `effective_events` from the associate type's
+`default_events`, the spec's `events`, and the spec's `do_not_listen` list.
+
+Associate setup functions should bind or emit only semantic events included in
+`effective_events`.
+
 ## Associate Types
 
 Associate types live in `src/tkmachina/associates.py`.
@@ -188,6 +215,7 @@ The current type dictionaries look like:
     "name": "button",
     "can_host_children": False,
     "embeddable": True,
+    "default_events": ["button_pressed"],
     "setup_fn": setup_button_associate,
     "project_fn": project_button_associate,
     "destroy_fn": destroy_widget_associate,
@@ -198,8 +226,16 @@ Important flags:
 
 - `can_host_children`: the associate can provide a layout parent for child spots
 - `embeddable`: the associate can be embedded into another widget hierarchy
+- `default_events`: semantic events enabled unless the associate spec suppresses
+  them
 
 `WINDOW_ASSOCIATE_TYPE` can host children but is not embeddable.
+
+Current built-in event defaults:
+
+- `WINDOW_ASSOCIATE_TYPE`: `window_resized`
+- `BUTTON_ASSOCIATE_TYPE`: `button_pressed`
+- `LABEL_ASSOCIATE_TYPE`: no default events
 
 ## Child Castles
 

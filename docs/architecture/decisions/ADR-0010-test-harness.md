@@ -25,3 +25,39 @@ two builds do not cross-route messages
 
 Fake associate types could let the runtime be tested without real Tk.
 
+## Status
+
+Approved in principle.
+
+## Decision
+
+TkMachina should have a test strategy with two complementary layers.
+
+First, runtime invariant tests should exercise RT behavior using fake associate
+types where possible. These tests should verify construction, cleanup, routing,
+dirty projection, failed builds, structural replacement, and isolation between
+builds without requiring real Tk widgets.
+
+Second, TkMachina should support event-loop-native hosted Tk tests for behavior
+that depends on the real Tk lifecycle. These tests may use `tkintertester` or a
+compatible harness. The goal is not screenshot-based visual testing, but live
+runtime testing inside the actual Tk event loop.
+
+Hosted Tk tests are appropriate for widget creation, projection, Tk callbacks,
+`after(...)` timing, teardown, window close behavior, structural replacement,
+and ensuring destroyed or inactive associates do not continue to emit or
+project.
+
+The test harness should remain outside the core runtime semantics. RT should
+expose enough stable inspection helpers for tests, but normal runtime behavior
+should not depend on the harness.
+
+## Consequences
+
+Fake associate tests keep core runtime invariants fast and direct.
+
+Hosted Tk tests catch lifecycle and event-loop bugs that fake associates cannot.
+
+The same application entry path should be reusable for normal runtime and test
+runtime where practical.
+
