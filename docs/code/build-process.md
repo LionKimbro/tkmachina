@@ -177,8 +177,12 @@ Associate shells are allocated from `spec["associates"]`:
 }
 ```
 
-`desired` is the projection target. `observed` is raw-ish GUI reality reported
-by the associate. `private` is projector/widget bookkeeping.
+`desired` is the projection target. `observed` is public runtime-facing widget
+reality maintained by the associate. `private` is projector/widget
+bookkeeping and is not a castle-author surface.
+
+Event interest controls message emission, not whether observed state is
+maintained.
 
 `events` and `do_not_listen` are copied from the associate spec.
 `effective_events` is computed from the associate type's `default_events`,

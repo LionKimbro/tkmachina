@@ -84,15 +84,18 @@ def bind_common_widget_events(associate):
 
 def bind_focus_events(associate):
     widget = associate["tk"]
+    should_observe_focus = (
+        "focused" in associate["observed"]
+        or wants_event(associate, "focused")
+        or wants_event(associate, "unfocused")
+    )
 
-    if wants_event(associate, "focused"):
+    if should_observe_focus:
         widget.bind(
             "<FocusIn>",
             lambda _event: handle_common_focus_event(associate, True),
             add="+",
         )
-
-    if wants_event(associate, "unfocused"):
         widget.bind(
             "<FocusOut>",
             lambda _event: handle_common_focus_event(associate, False),
@@ -105,7 +108,9 @@ def handle_common_focus_event(associate, focused):
         return
 
     associate["observed"]["focused"] = focused
-    emit_event(associate, "focused" if focused else "unfocused")
+    event_type = "focused" if focused else "unfocused"
+    if wants_event(associate, event_type):
+        emit_event(associate, event_type)
 
 
 def bind_pointer_enter_leave_events(associate):
@@ -330,6 +335,7 @@ def setup_entry_associate(associate, tk_parent):
 
     text_var = tk.StringVar(value=desired.get("text", ""))
     observed["text"] = text_var.get()
+    observed.setdefault("focused", False)
     private["text_var"] = text_var
     private["projected_text"] = text_var.get()
     private["suppress_text_changed"] = False
@@ -354,8 +360,7 @@ def setup_entry_associate(associate, tk_parent):
         emit_event(associate, "submitted", {"text": text})
         return "break"
 
-    if wants_event(associate, "text_changed"):
-        private["text_trace"] = text_var.trace_add("write", on_text_changed)
+    private["text_trace"] = text_var.trace_add("write", on_text_changed)
     if wants_event(associate, "submitted"):
         widget.bind("<Return>", on_submitted, add="+")
 

@@ -158,7 +158,9 @@ Examples:
 
 ### Observed
 
-`observed` is widget reality reported back by the associate.
+`observed` is public runtime-facing widget reality maintained by the associate.
+Castle authors may read ordinary facts from it so they do not need to inspect
+raw Tk widgets for normal use.
 
 Example:
 
@@ -169,12 +171,19 @@ Example:
 }
 ```
 
-Castles should not write observed values directly. They should receive messages
-and store interpreted semantic memory in castle state.
+Castles should not write observed values directly. If a castle needs to
+remember or interpret observed reality, it should store that interpretation in
+castle state.
+
+Event interest does not decide whether observed state is maintained. Event
+interest decides whether semantic messages are emitted. For example, an Entry
+associate should keep `observed["text"]` current even when it is not emitting
+`text_changed` messages.
 
 ### Private
 
-`private` is projector or widget bookkeeping.
+`private` is projector or widget bookkeeping. Castle authors should not depend
+on `private` fields.
 
 Example:
 

@@ -15,5 +15,8 @@ if errorlevel 1 exit /b %errorlevel%
 python guitests\test_entry_associate_hosted.py 2>&1
 if errorlevel 1 exit /b %errorlevel%
 
+python guitests\test_entry_observed_hosted.py 2>&1
+if errorlevel 1 exit /b %errorlevel%
+
 echo.
 echo All TkMachina tests passed.
