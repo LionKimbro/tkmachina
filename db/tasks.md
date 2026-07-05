@@ -4,6 +4,25 @@ This is a lightweight task ledger for design and implementation follow-up items.
 
 ## Open
 
+### Prepare Manual Image And Diagram Assets
+
+- Origin date: 2026-07-05
+- Source: manual-html first snapshot
+- Status: Open
+
+Review the visual placeholders in `docs/manual-html/` and decide which images
+or diagrams should become real assets.
+
+Wishlist:
+
+- A friendly front-door project image for the manual home page.
+- An optional Lion/project portrait or personal project image.
+- A diagram showing raw Tk callbacks compared with TkMachina's modeled runtime.
+- A diagram showing castle -> associate -> Tk widget boundaries.
+- A diagram showing child castle bubble-up routing.
+- A diagram showing desired -> projection -> widget and widget -> observed /
+  event flow.
+
 ### Implement Frame Associate
 
 - Origin date: 2026-07-05

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How Associates Work</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="brand" href="index.html">TkMachina Manual</a>
+      <div class="nav-links">
+        <a href="why.html">Why</a>
+        <a href="concepts-associates.html">Associates</a>
+        <a href="associate-reference.html">Reference</a>
+        <a href="glossary.html">Glossary</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="content">
+    <div class="eyebrow">Conceptual overview</div>
+    <h1>How Associates Work</h1>
+    <p class="lead">An associate is the Little-Castles-side companion to a Tk widget or widget-like resource.</p>
+
+    <p>The associate is the boundary object that gives a castle a modeled, data-focused way to work with concrete Tk objects.</p>
+
+    <div class="diagram-placeholder">
+      <strong>Diagram placeholder</strong>
+      Castle state -> desired -> associate projection -> Tk widget -> observed/events -> routes.
+    </div>
+
+    <h2>Desired</h2>
+    <p><code>associate["desired"]</code> is the projection target. It contains values the castle or runtime wants projected onto the concrete widget.</p>
+    <pre>rt.target_associate(button)
+rt.set_desired("text", "Save")</pre>
+
+    <h2>Observed</h2>
+    <p><code>associate["observed"]</code> is the associate's public modeled-observation surface. It is not a complete mirror of Tk. Each associate type defines which observed fields it intentionally maintains.</p>
+    <pre>entry["observed"]["text"]
+entry["observed"]["focused"]</pre>
+
+    <h2>Private</h2>
+    <p><code>associate["private"]</code> is implementation detail: trace IDs, private Tk variables, projected-value caches, and suppression flags.</p>
+    <pre>entry["private"]["text_var"]
+entry["private"]["text_trace"]</pre>
+
+    <h2>Events</h2>
+    <p>Associates emit semantic messages through their outbox. Event interest controls which messages are emitted. It does not control which modeled observed fields are maintained.</p>
+
+    <h2>Common Widget Events</h2>
+    <p>Reusable binders support opt-in events such as <code>focused</code>, <code>unfocused</code>, <code>pointer_entered</code>, <code>clicked</code>, <code>key_pressed</code>, and <code>configured</code>.</p>
+  </main>
+
+  <footer class="footer">Source page: docs/manual/concepts-associates.md</footer>
+</body>
+</html>

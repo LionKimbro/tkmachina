@@ -6,6 +6,10 @@ associate library grows much larger.
 
 ## Table Of Contents
 
+### Start Here
+
+- [Why Use TkMachina?](why-tkmachina.md)
+
 ### 1. Tutorial
 
 Planned tutorial path:

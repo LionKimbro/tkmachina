@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Glossary</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="brand" href="index.html">TkMachina Manual</a>
+      <div class="nav-links">
+        <a href="why.html">Why</a>
+        <a href="concepts-associates.html">Associates</a>
+        <a href="associate-reference.html">Reference</a>
+        <a href="glossary.html">Glossary</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="content">
+    <div class="eyebrow">Language</div>
+    <h1>Glossary</h1>
+
+    <h2>Associate</h2>
+    <p>A modeled companion to a Tk widget or widget-like resource.</p>
+
+    <h2>Castle</h2>
+    <p>A runtime participant that owns state, inbox, outbox, associates, child castles, spots, placements, and optional handlers/reconcilers.</p>
+
+    <h2>Desired</h2>
+    <p>The projection target: values the castle or RT wants projected onto the concrete widget.</p>
+
+    <h2>Observed</h2>
+    <p>The associate's public modeled-observation surface. It is intentionally maintained, but not a complete mirror of Tk.</p>
+
+    <h2>Private</h2>
+    <p>Associate implementation detail such as trace IDs, private variables, projected-value caches, or suppression flags.</p>
+
+    <h2>Route</h2>
+    <p>A runtime record that moves messages from one outbox to another inbox.</p>
+
+    <h2>Spot</h2>
+    <p>A named place in a castle's layout tree.</p>
+
+    <h2>Template</h2>
+    <p>A Python callable that returns a castle specification. Templates describe what should be built; they are not live castles.</p>
+  </main>
+
+  <footer class="footer">Source page: docs/manual/glossary.md</footer>
+</body>
+</html>

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TkMachina Manual</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="brand" href="index.html">TkMachina Manual</a>
+      <div class="nav-links">
+        <a href="why.html">Why</a>
+        <a href="concepts-associates.html">Associates</a>
+        <a href="associate-reference.html">Reference</a>
+        <a href="glossary.html">Glossary</a>
+      </div>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">A friendly snapshot of the living manual</div>
+          <h1>TkMachina is a modeled Tkinter.</h1>
+          <p class="lead">
+            Build Tkinter applications as small live worlds made of castles,
+            associates, spots, routes, messages, and projected state.
+          </p>
+          <div class="button-row">
+            <a class="button primary" href="why.html">Start With Why</a>
+            <a class="button" href="associate-reference.html">Browse Associates</a>
+          </div>
+          <p class="snapshot-note">
+            This HTML manual is an occasional snapshot. The source manual lives
+            in <code>docs/manual/</code>.
+          </p>
+        </div>
+        <div class="hero-art" aria-label="Runtime model diagram">
+          <div class="runtime-map">
+            <div class="map-node"><strong>Castle</strong><span>state, inbox, outbox, reconciliation</span></div>
+            <div class="arrow">↓ desired state</div>
+            <div class="map-node"><strong>Associate</strong><span>desired / observed / private</span></div>
+            <div class="arrow">↓ projection · ↑ observation</div>
+            <div class="map-node"><strong>Tk Widget</strong><span>real UI surface and callbacks</span></div>
+            <div class="arrow">↑ semantic events through routes</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="inner">
+        <h2>What This Manual Covers</h2>
+        <div class="cards">
+          <article class="card">
+            <span class="pill blue">Concept</span>
+            <h3>Why TkMachina?</h3>
+            <p>Raw Tk is good. TkMachina adds a visible runtime model for applications that need to grow.</p>
+            <a href="why.html">Read the pitch</a>
+          </article>
+          <article class="card">
+            <span class="pill teal">Model</span>
+            <h3>Associates</h3>
+            <p>Associates are modeled companions to widgets with desired, observed, and private state.</p>
+            <a href="concepts-associates.html">Learn the boundary</a>
+          </article>
+          <article class="card">
+            <span class="pill amber">Reference</span>
+            <h3>Current Types</h3>
+            <p>Window, button, label, and entry are documented using the associate reference format.</p>
+            <a href="associate-reference.html">Open reference</a>
+          </article>
+        </div>
+
+        <div class="image-placeholder">
+          <strong>Image placeholder</strong>
+          A future friendly project image, portrait, or visual metaphor could live here.
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">TkMachina manual HTML snapshot.</footer>
+</body>
+</html>

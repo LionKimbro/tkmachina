@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Associate Reference</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="brand" href="index.html">TkMachina Manual</a>
+      <div class="nav-links">
+        <a href="why.html">Why</a>
+        <a href="concepts-associates.html">Associates</a>
+        <a href="associate-reference.html">Reference</a>
+        <a href="glossary.html">Glossary</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="content">
+    <div class="eyebrow">Reference</div>
+    <h1>Associate Reference</h1>
+    <p class="lead">Each associate type is documented by the Little Castles promise it makes, not just by the Tk widget underneath.</p>
+
+    <h2>Reference Page Format</h2>
+    <ul>
+      <li>Name</li>
+      <li>Purpose</li>
+      <li>Underlying Tk widget</li>
+      <li>Can host children?</li>
+      <li>Embeddable?</li>
+      <li>Desired fields</li>
+      <li>Observed fields</li>
+      <li>Private resources</li>
+      <li>Default events</li>
+      <li>Optional events</li>
+      <li>Projection behavior</li>
+      <li>Destroy behavior</li>
+    </ul>
+
+    <h2>Current Associates</h2>
+    <table class="reference-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Purpose</th>
+          <th>Defaults</th>
+          <th>Observed</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>window</code></td>
+          <td>Owns a Toplevel and content frame.</td>
+          <td><code>window_resized</code></td>
+          <td><code>actual_width</code>, <code>actual_height</code></td>
+        </tr>
+        <tr>
+          <td><code>button</code></td>
+          <td>Command-style button.</td>
+          <td><code>button_pressed</code></td>
+          <td>None currently modeled.</td>
+        </tr>
+        <tr>
+          <td><code>label</code></td>
+          <td>Displays text.</td>
+          <td>None.</td>
+          <td>None currently modeled.</td>
+        </tr>
+        <tr>
+          <td><code>entry</code></td>
+          <td>Single-line text input.</td>
+          <td><code>submitted</code></td>
+          <td><code>text</code>, <code>focused</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>Entry Notes</h2>
+    <p>The Entry associate uses a private <code>StringVar</code> and trace to keep modeled text observation current. Projection suppresses <code>text_changed</code> emission.</p>
+
+    <div class="diagram-placeholder">
+      <strong>Diagram placeholder</strong>
+      Entry StringVar trace, observed text, submitted event, and projection suppression.
+    </div>
+  </main>
+
+  <footer class="footer">Source page: docs/manual/associate-reference.md</footer>
+</body>
+</html>

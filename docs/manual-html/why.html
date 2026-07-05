@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Why Use TkMachina?</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="nav">
+      <a class="brand" href="index.html">TkMachina Manual</a>
+      <div class="nav-links">
+        <a href="why.html">Why</a>
+        <a href="concepts-associates.html">Associates</a>
+        <a href="associate-reference.html">Reference</a>
+        <a href="glossary.html">Glossary</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="content">
+    <div class="eyebrow">Start here</div>
+    <h1>Why Use TkMachina?</h1>
+    <p class="lead">TkMachina is not a replacement for Tkinter. It is a way to build Tkinter applications as small live worlds.</p>
+
+    <h2>Raw Tk Is Good</h2>
+    <p>Use raw Tk when direct widget programming is enough: small scripts, one-window tools, quick utility GUIs, and simple callback apps.</p>
+    <p>TkMachina is not trying to be the shortest path to a button. Raw Tk already does that beautifully.</p>
+
+    <h2>The Problem TkMachina Solves</h2>
+    <p>As Tkinter applications grow, meaning can become spread across widget variables, callbacks, closures, bindings, layout calls, destroy calls, and side effects.</p>
+    <p>TkMachina tries to centralize meaning into castle state, associate desired state, associate observed state, semantic events, spots, routes, reconciliation, projection, and structural requests.</p>
+
+    <pre>Raw Tk asks:
+  What widget do I mutate?
+
+TkMachina asks:
+  What state changed, what semantic event happened,
+  and what should be projected?</pre>
+
+    <div class="diagram-placeholder">
+      <strong>Diagram placeholder</strong>
+      Raw Tk callback flow beside TkMachina's modeled runtime flow.
+    </div>
+
+    <h2>The Cost</h2>
+    <p>TkMachina adds machinery. It is not a thinner Tkinter. It is a modeled Tkinter.</p>
+
+    <h2>The Payoff</h2>
+    <p>The running UI becomes more inspectable, replaceable, routable, and understandable as it grows.</p>
+
+    <h2>When To Use It</h2>
+    <ul>
+      <li>Your UI has regions that should be built, cleared, or replaced as units.</li>
+      <li>You want events to be semantic messages instead of scattered callbacks.</li>
+      <li>You want desired widget state to be inspectable data.</li>
+      <li>You want observed widget facts to have a public modeled surface.</li>
+      <li>You want child UI regions to be castles, not arbitrary frames.</li>
+    </ul>
+
+    <h2>When Not To Use It</h2>
+    <ul>
+      <li>You want the smallest possible Tk script.</li>
+      <li>You are building a simple throwaway dialog.</li>
+      <li>You need every obscure Tk feature immediately modeled.</li>
+      <li>You do not want a runtime layer.</li>
+    </ul>
+
+    <h2>Raw Tk Remains Available</h2>
+    <p><code>associate["tk"]</code> remains available as an escape hatch for advanced, unusual, or unmodeled behavior. The goal is that ordinary behavior should rarely require raw Tk.</p>
+  </main>
+
+  <footer class="footer">Source page: docs/manual/why-tkmachina.md</footer>
+</body>
+</html>
