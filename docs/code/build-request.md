@@ -1,18 +1,20 @@
 # Build Request
 
-This note documents the build request data structure submitted to the runtime
-build process in `src/tkmachina/rt.py`.
+This note documents the current build request record submitted to the runtime
+in `src/tkmachina/rt.py`.
 
-`docs/code/build-process.md` describes how the runtime processes a build. This
-document describes what a caller submits and what data that request carries.
+Build requests are invocations of templates. A template describes a castle
+structure. A build request says: build that template now, with this context, and
+possibly attach the resulting root castle to an existing parent castle and
+spot.
 
 ## Purpose
 
-A build request is one request to apply a reusable template.
+A build request is one construction request.
 
-The template is the pattern. The build request is a specific invocation of that
-pattern. Calling `make_build_request(...)` twice with the same `template_fn`
-creates two separate requests and can mint two separate live instances.
+Calling `make_build_request(...)` twice with the same template function creates
+two independent requests. Each successful request mints new runtime ids for
+castles, associates, spots, and routes.
 
 ## Creating A Request
 
@@ -20,28 +22,34 @@ Build requests are created with:
 
 ```python
 rt.make_build_request(
-    template_fn=demo_template,
-    build_context={
-        "trace_wraplength": 400,
-    },
-)
-```
-
-Full call shape:
-
-```python
-rt.make_build_request(
     template_fn,
     build_context=None,
     parent_castle=None,
-    slot=None,
+    child_name=None,
+    parent_spot=None,
     activate_when_complete=True,
 )
 ```
 
-## Submitted Request Record
+The current function still accepts `slot` as a compatibility alias for
+`child_name`. New code should not use it.
 
-`make_build_request(...)` returns this dictionary:
+Normal top-level builds are submitted like this:
+
+```python
+request = rt.make_build_request(
+    template_fn=demo_template,
+    build_context={"trace_wraplength": 400},
+)
+rt.submit_build_request(request)
+```
+
+The runtime queues submitted requests in `incoming_builds`. They are processed
+by `process_incoming_builds()` during the runtime tick.
+
+## Request Shape
+
+`make_build_request(...)` returns:
 
 ```python
 {
@@ -51,350 +59,163 @@ rt.make_build_request(
     "build_context": build_context or {},
     "parent_castle": parent_castle,
     "slot": slot,
+    "child_name": resolved_child_name,
+    "parent_spot": parent_spot,
     "activate_when_complete": activate_when_complete,
 }
 ```
 
-This is the object passed to:
+`resolved_child_name` is `child_name` when provided, otherwise `slot`.
 
-```python
-rt.submit_build_request(build_request)
-```
-
-Submission appends the request to `incoming_builds`. The build request itself
-does not create castles, associates, widgets, or routes.
-
-## Request Fields
-
-### `kind`
-
-Always `"build_request"`.
-
-This marks the dictionary as a build request. The current runtime does not
-perform strict schema validation on it.
-
-### `id`
-
-Runtime-generated request id.
-
-The id is assigned by `make_id("build")`. It identifies the request invocation
-for tracing and diagnostics.
-
-The id is not a template name, castle name, or global address.
+## Fields
 
 ### `template_fn`
 
-Callable template function.
-
-The template function receives `build_context` and returns a castle spec:
+Callable that receives `build_context` and returns a castle spec:
 
 ```python
-def demo_template(build_context):
-    return {
-        "kind": "castle_spec",
-        "name": "demo_castle",
-        ...
-    }
+spec = template_fn(build_context)
 ```
 
-The template function is part of the request because the request says what
-pattern should be applied.
+The runtime currently uses direct Python function references. That is not yet a
+serializable template-reference system.
 
 ### `build_context`
 
-Invocation-specific template input.
+Caller-supplied values for this build invocation.
 
-If omitted, this becomes `{}`.
-
-Use `build_context` for values that vary per build request while keeping the
-same template reusable. For example:
-
-```python
-{
-    "trace_wraplength": 400,
-}
-```
+The runtime passes this dictionary to the template function. Templates should
+copy values they need into returned specs or state. The runtime does not keep
+interpreting `build_context` after template expansion.
 
 ### `parent_castle`
 
-Optional parent castle reference.
+Optional live parent castle record or castle id.
 
-When provided, the built castle is attached into the parent castle's
-`children` mapping. `slot` must also be provided.
+When present, the new root castle is attached to the parent castle's
+`children` mapping under `child_name`.
 
-### `slot`
+### `child_name`
 
-Optional parent slot name.
-
-When `parent_castle` is provided, `slot` names where the new castle is attached:
+Parent-local name for the child castle:
 
 ```python
-parent_castle["children"][slot] = child_castle_id
-child_castle["parent"] = parent_castle_id
-child_castle["slot"] = slot
+parent_castle["children"][child_name] = child_castle_id
 ```
+
+`child_name` names the child being attached. It is not the visual spot.
+
+For example:
+
+```text
+child_name:  "trace_log"
+parent_spot: "trace_log_spot"
+```
+
+### `parent_spot`
+
+Optional parent-local spot name.
+
+When present, the build result is also placed into an existing live parent
+spot. This is used by scheduled structural building and replacement.
+
+The parent spot must exist and be empty when the build reaches
+`apply_parent_spot_placement(build)`.
 
 ### `activate_when_complete`
 
-Boolean activation flag.
+If true, the build's castles, associates, spots, and routes are activated after
+construction.
 
-Default: `True`.
+The default is true.
 
-When true, records minted by the build become active after the build completes.
-When false, the request can still describe what to build, but the minted records
-remain inactive.
+## Top-Level Builds
 
-## Template Return Value
-
-The submitted request does not directly contain the castle, associate, export,
-or route specs. It contains a `template_fn` that returns them.
-
-That returned dictionary is the request's payload shape.
-
-Current top-level template result:
+A top-level build usually has no parent:
 
 ```python
-{
-    "kind": "castle_spec",
-    "name": "demo_castle",
-    "state": {},
-    "handle_fn": handle_demo_castle_message,
-    "reconcile_fn": reconcile_demo_castle,
-    "child_castles": [],
-    "exports": [],
-    "routes": [],
-    "associates": [],
-}
+rt.submit_build_request(
+    rt.make_build_request(
+        template_fn=demo_template,
+        build_context={"trace_wraplength": 400},
+    )
+)
 ```
 
-## Castle Spec Sections
+Its root visual associate will be constructed under `tk_master`.
 
-### `kind`
+## Structural Builds
 
-Usually `"castle_spec"`.
+Scheduled structural building uses build requests internally.
 
-This is self-description for the returned template record. The current runtime
-does not deeply validate it.
-
-### `name`
-
-Local castle role name.
-
-This is not globally unique. If the same template is built twice, both minted
-castles may have the same `name`; each receives a different runtime id.
-
-### `state`
-
-Initial state dictionary for the minted castle.
-
-The runtime copies this into the castle shell.
-
-### `handle_fn`
-
-Message handler for the minted castle.
-
-The handler receives `(castle, message)`.
-
-The handler should return one of:
-
-- `rt.IGNORED`
-- `rt.HANDLED`
-- `rt.HANDLED_DIRTY`
-
-Only `rt.HANDLED_DIRTY` marks the castle dirty for reconciliation. `None` is
-treated as `rt.HANDLED_DIRTY` for backward compatibility.
-
-### `reconcile_fn`
-
-Optional post-message reconciliation function for the minted castle.
-
-The reconciler receives `(castle)`. It runs after castle message handling and
-before associate projection, but only for dirty castles that provide a
-`reconcile_fn`.
-
-Headless and service castles may omit it.
-
-### `child_castles`
-
-Optional list of child castle specs to build inside this castle.
-
-Current Python-only child declaration shape:
+When code calls:
 
 ```python
-{
-    "kind": "child_castle_spec",
-    "slot": "trace_log",
-    "template_fn": trace_log_castle_template,
-    "build_context": {},
-    "mount": {
-        "parent_associate": "main_window",
-        "grid": {
-            "row": 3,
-            "column": 0,
-            "sticky": "ew",
-        },
-    },
-}
+rt.target_castle(parent_castle)
+rt.schedule_building(
+    "trace_log_spot",
+    trace_log_castle_template,
+    {"trace_wraplength": 400},
+    child_name="trace_log",
+)
 ```
 
-Fields:
-
-- `kind`: usually `"child_castle_spec"`
-- `slot`: local slot name in the parent castle's `children` mapping
-- `template_fn`: child template function to instantiate
-- `build_context`: optional context passed to the child template
-- `mount`: optional visual mount for the child's root associate
-
-The `mount` section is only needed for visible child castles. Headless child
-castles can omit it.
-
-### `exports`
-
-Optional list of global export specs.
-
-Exports publish a minted castle under a global address.
+the runtime later creates a build request shaped roughly like:
 
 ```python
-"exports": [
-    {
-        "kind": "export_spec",
-        "name": "demo_primary",
-        "target": {
-            "kind": "castle",
-            "name": "demo_castle",
-        },
-    },
-]
+rt.make_build_request(
+    template_fn=trace_log_castle_template,
+    build_context={"trace_wraplength": 400},
+    parent_castle=parent_castle["id"],
+    child_name="trace_log",
+    parent_spot="trace_log_spot",
+)
 ```
 
-Export fields:
+This builds a new child castle from the template and places its root associate
+into the named parent spot.
 
-- `kind`: usually `"export_spec"`
-- `name`: global address to publish
-- `target`: local target to publish
+## Relationship To Templates
 
-Current target shape:
+The request is not the template.
 
-```python
-{
-    "kind": "castle",
-    "name": "demo_castle",
-}
+```text
+template = reusable castle pattern
+request = one invocation of that pattern
+build = live runtime construction attempt
 ```
 
-Current rule: a global export name must be unique. A build fails if the name is
-already registered or duplicated inside the same template result.
+A template function returns a castle spec. The build request carries the
+template function and context needed to produce that spec.
 
-### `routes`
+## Relationship To Spots And Placements
 
-Optional list of requested route specs.
+ADR-0012 is the current layout model.
 
-Routes describe extra message paths requested by the template.
+New request language should be:
 
-```python
-"routes": [
-    {
-        "kind": "route_spec",
-        "from": {
-            "kind": "global_castle",
-            "name": rt.TRACE_CASTLE,
-            "box": "outbox",
-        },
-        "to": {
-            "kind": "castle",
-            "name": "demo_castle",
-            "box": "inbox",
-        },
-    },
-]
+```text
+child_name  -> name of child castle in parent["children"]
+parent_spot -> name of visual/layout spot in parent["spots"]
 ```
 
-Route fields:
+Old `slot` language should be read as historical or compatibility-only.
 
-- `kind`: usually `"route_spec"`
-- `from`: source endpoint
-- `to`: destination endpoint
+Build requests do not carry `mount` records. Visual placement is expressed
+through parent spots and spot occupancy.
 
-Endpoint fields:
+## Failure Behavior
 
-- `kind`: endpoint namespace/kind
-- `name`: endpoint name in that namespace
-- `box`: source or destination queue name
+If a build fails, `execute_build_request(request)` catches the exception,
+cleans up records created by that build attempt, and moves the build record to
+`faulty_builds`.
 
-Current endpoint kinds:
-
-- `global_castle`: resolves through the global castle address book
-- `castle`: resolves against castles minted by this build
-- `associate`: resolves against associates minted by this build
-
-### `associates`
-
-List of associate specs owned by the castle.
-
-Associate specs may be nested through `children`.
-
-```python
-{
-    "kind": "associate_spec",
-    "name": "priority_button",
-    "associate_type": BUTTON_ASSOCIATE_TYPE,
-    "desired": {
-        "text": "Required (5 left)",
-        "enabled": True,
-    },
-    "layout": {},
-    "grid": {
-        "row": 0,
-        "column": 0,
-        "sticky": "ew",
-    },
-    "children": [],
-}
-```
-
-Associate fields:
-
-- `kind`: usually `"associate_spec"`
-- `name`: local associate role name
-- `associate_type`: setup/project/destroy behavior record
-- `data`: desired widget-facing data
-- `layout`: layout configuration for a child container this associate provides
-- `grid`: Tk grid options for this associate's own widget
-- `children`: nested associate specs
-
-## Associate Type Shape
-
-`associate_type` is a dictionary of behavior functions:
-
-```python
-{
-    "name": "button",
-    "setup_fn": setup_button_associate,
-    "project_fn": project_button_associate,
-    "destroy_fn": destroy_widget_associate,
-}
-```
-
-Fields:
-
-- `name`: associate type name
-- `setup_fn`: creates or attaches the concrete Tk object
-- `project_fn`: projects desired `data` onto the concrete Tk object
-- `destroy_fn`: destroys or detaches the concrete Tk object
-
-## Current Defaults
-
-A build request does not need to declare default associate-to-castle routes.
-
-The runtime currently creates routes from every associate `outbox` to the host
-castle `inbox`. Template `routes` are for additional requested topology.
+For failed structural builds, cleanup also detaches any parent spot occupancy
+that pointed at the partially built child castle.
 
 ## Current Limits
 
-The current request/template shape does not yet support:
-
-- multiple castle specs in one request
-- non-castle global exports
-- conflict policies other than failing duplicate global exports
-- schema validation for every `kind` field
-- route endpoints by runtime id
+- Requests use direct Python function references.
+- `slot` still exists as a compatibility alias for `child_name`.
+- Request records are plain dictionaries, not typed objects.
+- Error policy is currently simple: log, clean up, and record faulty builds.

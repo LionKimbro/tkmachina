@@ -1,16 +1,15 @@
 # Build Process
 
-This note describes the current runtime build process in
-`src/tkmachina/rt.py`, centered on `process_build(build)`.
+This note describes the current runtime build process in `src/tkmachina/rt.py`,
+centered on `process_build(build)`.
 
-It is an architecture note, not an API reference. The runtime is still evolving,
-so this document focuses on what the build process means, what it currently
-guarantees, and where the design is still provisional.
+It is an architecture note, not an API reference. It explains what the runtime
+currently does when turning a template result into live castle, associate, spot,
+route, and widget records.
 
 ## Purpose
 
-The build process turns an inert-ish template result into live runtime records
-and Tk widgets.
+The build process turns a template result into live runtime structure.
 
 At a high level:
 
@@ -19,35 +18,37 @@ build request
   -> template expansion
   -> castle shell allocation
   -> associate shell allocation
-  -> Tk widget construction
-  -> layout application
-  -> default route wiring
+  -> spot allocation
+  -> initial spot occupancy
+  -> widget construction
+  -> layout
+  -> route wiring
   -> activation
 ```
 
-The important design move is timing: live construction belongs to the runtime,
-not to template functions. A template describes what should exist; `RT` decides
-when that description becomes live records, widgets, routes, and active
-participants.
+`process_build(build)` is not the whole runtime. It is the construction
+ceremony used by normal submitted builds and by scheduled structural building
+operations.
 
 ## Scope
 
-The current build process supports a small castle hierarchy demo:
+The build process currently handles:
 
-- one top-level castle spec
-- child castle specs declared by the top-level castle
-- parent/slot attachment between castles
-- optional visual mounting of a child castle's root associate
-- nested associate specs
-- parent-before-child associate construction
-- Tk widget creation through associate type setup functions
-- grid layout
-- default routes from every associate outbox to the host castle inbox
-- activation of castles, associates, and routes
+- expanding one `template_fn(build_context)` into a castle spec
+- allocating one root castle and its declared child castles
+- registering optional global castle exports
+- allocating associates with `desired`, `observed`, and `private` state
+- allocating named spots from a spot tree
+- resolving initial `placements`
+- validating spot occupancy rules from ADR-0012
+- constructing Tk widgets through associate type `setup_fn`
+- applying grid layout
+- wiring default associate-to-castle routes
+- appending explicit template routes
+- activating the completed build
 
-It does not yet support multiple sibling top-level castles in one template,
-destroy/rebuild reconciliation, validation, or a final serializable child
-template reference format.
+It does not interpret castle state, process messages, reconcile desired view
+state, or project dirty associates. Those happen in later runtime phases.
 
 ## Main Entry Point
 
@@ -57,114 +58,100 @@ The main entry point is:
 process_build(build)
 ```
 
-It is called by `process_incoming_builds()`, not directly by the demo.
+Normal callers do not call this directly. They submit a build request:
 
-`process_incoming_builds()` drains `incoming_builds`, wraps each build request
-in an active build record, appends that record to `active_builds`, and then
-calls `process_build(build)` inside a `try`/`except`.
+```python
+rt.submit_build_request(rt.make_build_request(template_fn, build_context))
+```
 
-If `process_build(build)` succeeds, the build record moves to
-`completed_builds`. If it raises, the build record moves to `faulty_builds` and
-stores an error string.
+`process_incoming_builds()` later pops requests and calls
+`execute_build_request(request)`, which creates an active build record and calls
+`process_build(build)` inside a failure boundary.
+
+Scheduled structural operations also call `execute_build_request(...)` when
+they need to build a child castle into an already-live parent spot.
 
 ## Inputs
 
-`process_build(build)` receives an active build record shaped like this:
+`process_build(build)` receives an active build record:
 
 ```python
 {
     "kind": "active_build",
-    "request": build_request,
+    "request": request,
     "spec": None,
     "castle_specs": {},
-    "castle_mounts": {},
     "castle_ids": [],
     "associate_ids": [],
+    "spot_ids": [],
     "route_ids": [],
+    "global_export_names": [],
     "status": "active",
 }
 ```
 
-The nested `build_request` is created by `make_build_request(...)` and contains:
+The build request carries:
 
-- `kind`
-- `id`
-- `template_fn`
-- `build_context`
-- `parent_castle`
-- `slot`
-- `activate_when_complete`
+```python
+{
+    "kind": "build_request",
+    "id": "build:1",
+    "template_fn": template_fn,
+    "build_context": {...},
+    "parent_castle": None,
+    "child_name": None,
+    "parent_spot": None,
+    "activate_when_complete": True,
+}
+```
 
-`template_fn`, `build_context`, `parent_castle`, `slot`, and
-`activate_when_complete` have direct behavior in the current build path.
+`slot` may still appear in request records as a legacy compatibility alias for
+`child_name`. New code should use `child_name` and `parent_spot`.
 
 ## Key Data Structures
 
-### Build Queues
+### Build Records
 
-`RT` owns four build queues/lists:
+The build record is a transaction-ish ledger for one construction attempt. It
+tracks every castle, associate, route, spot, and global export created by that
+attempt so failed builds can be cleaned up.
 
-- `incoming_builds`
-- `active_builds`
-- `completed_builds`
-- `faulty_builds`
-
-The build process assumes requests enter through `incoming_builds` via
-`submit_build_request(build_request)`.
-
-### Runtime Registries
-
-Build creates and mutates these runtime registries:
-
-- `castles`
-- `associates`
-- `routes`
-- `trace`
-- `dirty_associates`
-
-`dirty_associates` is touched during widget construction because newly
-constructed associates are marked dirty so their desired data is projected.
-
-### ID Counters
-
-`make_id(kind)` uses `_next_ids` to assign IDs for:
-
-- `build`
-- `castle`
-- `associate`
-- `route`
-
-The build process depends on these IDs as registry keys and route endpoints.
+Completed builds move to `completed_builds`. Failed builds move to
+`faulty_builds` after cleanup.
 
 ### Castle Records
 
-`allocate_castle_shells(build)` creates one castle record:
+Castle shells are allocated before associates, spots, widgets, and routes:
 
 ```python
 {
     "kind": "castle",
     "id": castle_id,
-    "name": spec["name"],
+    "template_name": spec["template_name"],
+    "parent": parent_castle_id,
+    "child_name": child_name,
     "state": dict(spec.get("state", {})),
     "associates": {},
     "children": {},
+    "spots": {},
+    "placements": {},
     "inbox": [],
     "outbox": [],
     "active": False,
     "handle_fn": spec.get("handle_fn"),
+    "reconcile_fn": spec.get("reconcile_fn"),
 }
 ```
 
-The castle is registered in `RT.castles` and its ID is appended to
-`build["castle_ids"]`.
+`children` maps a parent-local child name to a child castle id. `spots` maps a
+parent-local spot name to a spot record.
+
+`template_name` is descriptive metadata copied from the castle spec. It is not
+the castle's live identity. The runtime id is the identity.
 
 ### Associate Records
 
-`allocate_associate_shell(...)` creates associate records from nested associate
-specs:
-
-If an associate spec still uses the older `data` key, the runtime treats it as
-initial `desired` data during this transition.
+Associate shells are allocated from `spec["associates"]`:
 
 ```python
 {
@@ -175,72 +162,60 @@ initial `desired` data during this transition.
     "host_castle": castle_id,
     "parent_associate": parent_id,
     "children": [],
-    "desired": dict(associate_spec.get("desired", {})),
-    "observed": dict(associate_spec.get("observed", {})),
-    "private": dict(associate_spec.get("private", {})),
+    "desired": {...},
+    "observed": {...},
+    "private": {...},
     "tk": None,
     "child_tk_parent": None,
-    "layout": dict(associate_spec.get("layout", {})),
-    "grid": dict(associate_spec.get("grid", {})),
+    "layout": {...},
+    "grid": {...},
     "outbox": [],
     "active": False,
 }
 ```
 
-Associates are registered in `RT.associates`, added to the host castle's
-`associates` mapping by name, and appended to `build["associate_ids"]`.
+`desired` is the projection target. `observed` is raw-ish GUI reality reported
+by the associate. `private` is projector/widget bookkeeping.
 
-### Routes
+During transition, `associate_spec["data"]` is still accepted as a fallback
+source for `desired` if `desired` is absent.
 
-`wire_default_routes(build)` creates one route for every associate:
+### Spot Records
+
+Spot records come from the castle spec's `spots` tree:
 
 ```python
 {
-    "kind": "route",
-    "id": route_id,
-    "from_kind": "associate",
-    "from_id": associate_id,
-    "from_box": "outbox",
-    "to_kind": "castle",
-    "to_id": castle_id,
-    "to_box": "inbox",
+    "kind": "spot",
+    "id": spot_id,
+    "name": spot_name,
+    "host_castle": castle_id,
+    "parent_spot": parent_spot_name,
+    "children": [],
+    "layout": {...},
+    "grid": {...},
+    "occupant": None,
     "active": False,
 }
 ```
 
-Routes are appended to `RT.routes` and their IDs are recorded in
-`build["route_ids"]`.
+Spots are places. Associates and child castles are beings. Initial
+`placements` put beings into places.
 
-## Step-by-Step Lifecycle
+### Routes
 
-### 1. Submit a build request
+The build process creates one default route for every associate:
 
-The demo calls:
-
-```python
-build_request = rt.make_build_request(...)
-rt.submit_build_request(build_request)
+```text
+associate.outbox -> host_castle.inbox
 ```
 
-`submit_build_request(...)` appends the request to `incoming_builds` and writes
-a trace line.
+It also appends explicit route specs from templates, including routes involving
+global castles such as `global_trace`.
 
-### 2. Runtime tick processes incoming builds
+## Step-By-Step Lifecycle
 
-`runtime_tick()` calls `process_incoming_builds()` before message delivery,
-castle message processing, and dirty associate projection.
-
-This means builds are currently processed at the beginning of a tick.
-
-### 3. Active build record is created
-
-For each request in `incoming_builds`, `process_incoming_builds()` creates an
-active build record with empty ID lists and `spec` set to `None`.
-
-The active build record is appended to `active_builds` before `process_build`
-runs.
-
-### 4. Expand template
+### 1. Expand Template
 
 `expand_template(build)` calls:
 
@@ -248,398 +223,174 @@ runs.
 request["template_fn"](request["build_context"])
 ```
 
-The returned spec is stored in `build["spec"]`.
+The result is stored as `build["spec"]`.
 
-In the current demo, `demo_template(build_context)` returns a parent castle spec
-with a child `trace_log_castle` declaration and nested associate specs. The
-parent's top-level associate is `main_window`, and its children include
-`priority_button`, `count_label`, `size_label`, and `reset_button`.
+### 2. Allocate Castle Shells
 
-### 5. Allocate castle shell
+`allocate_castle_shells(build)` allocates the root castle. If the request has a
+`parent_castle`, the new root is attached to that parent's `children` mapping
+under `child_name`.
 
-`allocate_castle_shells(build)` reads `build["spec"]`, creates the parent
-castle record, recursively expands declared child castle templates, registers
-castle records in `RT.castles`, and records their IDs in `build["castle_ids"]`.
+Then `allocate_castle_shell(...)` recursively expands each declared
+`child_castles` entry and allocates child castle shells.
 
-If a castle is built into a parent slot, the relationship is recorded both
-ways:
+### 3. Register Global Exports
 
-```python
-parent_castle["children"][slot] = child_castle_id
-child_castle["parent"] = parent_castle_id
-child_castle["slot"] = slot
+`register_global_exports(build)` processes template `exports`. The current
+runtime supports exporting castle targets into `global_castles`.
+
+Exports are validated before registration so duplicate names do not partially
+register.
+
+### 4. Allocate Associate Shells
+
+`allocate_associate_shells(build)` creates inactive associate records for each
+castle's local associate specs.
+
+At this point no Tk widgets exist yet.
+
+### 5. Allocate Spot Records
+
+`allocate_spot_records(build)` walks each castle spec's `spots` tree and
+allocates named spot records into the owning castle.
+
+Duplicate spot names within one castle are invalid.
+
+### 6. Apply Initial Placements
+
+`apply_initial_placements(build)` does three things:
+
+```text
+assign initial spot occupants
+validate spot occupants
+apply placement effects to associate parent/grid/layout records
 ```
 
-Castles are inactive at this point.
+Placements can name local associates or child castles:
 
-### 6. Allocate associate shells
+```python
+"placements": {
+    "main_window_spot": {"kind": "associate", "name": "main_window"},
+    "trace_log_spot": {"kind": "child_castle", "name": "trace_log"},
+}
+```
 
-`allocate_associate_shells(build)` walks each built castle's `associates` list.
-For each associate spec, it calls `allocate_associate_shell(...)`.
+ADR-0012 rules are enforced here:
 
-If a child castle has a visual mount, its single root associate is mounted under
-the requested parent associate and receives the mount's grid options.
+- if a spot has occupied child spots, that spot must have an occupant
+- the branching spot occupant must be a local associate
+- that associate type must have `can_host_children`
+- a placed child castle must expose exactly one root associate
+- embedded child roots must be embeddable
 
-`allocate_associate_shell(...)` is recursive. It allocates a shell for the
-current associate, then recursively allocates shells for any child specs in
-`associate_spec["children"]`.
+### 7. Apply Parent Spot Placement
 
-This recursion gives the build process its current nesting structure. Parent
-associate IDs are recorded in child associates, and parent associates record
-child IDs in their `children` list.
+If a build request came from scheduled structural building, it carries
+`parent_castle` and `parent_spot`.
 
-All associates are inactive at this point and have `tk` set to `None`.
+`apply_parent_spot_placement(build)` places the newly built root castle into
+that live parent spot. This is how `schedule_building(...)` and
+`schedule_replacement(...)` build new child castles into already-live layouts.
 
-### 7. Construct widgets
+### 8. Construct Widgets
 
-`construct_widgets(build)` iterates through `build["associate_ids"]` in the
-order associates were allocated.
+`construct_widgets(build)` calls each associate type's `setup_fn`.
 
-For each associate:
+The widget parent is resolved from `parent_associate`. Root associates use
+`tk_master`. Child associates use the parent associate's `child_tk_parent` when
+present, otherwise the parent associate's `tk`.
 
-1. `get_widget_parent(build, associate)` resolves the Tk parent.
-2. The associate type's `setup_fn` is called.
-3. The associate is marked dirty.
-4. A trace line is appended.
+Constructed associates are marked dirty so their `desired` state will be
+projected.
 
-Top-level associates use the global `RT.tk_master`, which is created by
-`setup_tk_bootstrap()` before build processing. Child associates use either
-their parent associate's `child_tk_parent` or the parent's `tk` widget.
+### 9. Apply Layout
 
-For example, `setup_window_associate(...)` creates a `tk.Toplevel`, creates a
-content frame, stores the Toplevel in `associate["tk"]`, and stores the content
-frame in `associate["child_tk_parent"]`. Later children are constructed inside
-that content frame.
+`apply_layout(build)` applies child layout configuration and grids widgets.
 
-### 8. Apply layout
+`layout["columnconfigure"]` and `layout["rowconfigure"]` apply to an
+associate's `child_tk_parent` when it has one. `grid` applies to the
+associate's concrete Tk widget.
 
-`apply_layout(build)` iterates through all associates again.
+### 10. Wire Routes
 
-For an associate with `child_tk_parent`, its `layout` dictionary is applied to
-that child host. Currently this supports `columnconfigure` and `rowconfigure`.
+`wire_default_routes(build)` creates associate outbox routes to host castle
+inboxes.
 
-If an associate has a non-empty `grid` dictionary, `associate["tk"].grid(...)`
-is called with those options.
-
-This means a parent associate can configure the layout behavior of the host it
-provides to children, while each child associate carries its own grid placement.
-
-### 9. Wire default routes
-
-`wire_default_routes(build)` creates a default associate-to-castle route for
-every associate in the build.
-
-These routes are inactive until activation. Once active, `deliver_messages()`
-drains each associate's `outbox` into the host castle's `inbox`.
-
-### 10. Append extra routes
-
-`append_extra_routes(build)` walks each built castle spec and materializes its
-declared route specs.
+`append_extra_routes(build)` appends explicit template routes.
 
 ### 11. Activate
 
-If `build["request"]["activate_when_complete"]` is true,
-`activate_build(build)` marks castles, associates, and build-created routes as
-active.
+If `activate_when_complete` is true, `activate_build(build)` marks castles,
+spots, associates, and build-created routes active.
 
-Only active castles process messages. Only active routes deliver messages. Only
-active associates are projected by `project_dirty_associates()`.
+Only active castles process messages. Only active associates project dirty
+state.
 
-### 12. Build completion or fault
+## Runtime Scheduling
 
-If all phases complete, `process_incoming_builds()` marks the build as
-completed and moves it from `active_builds` to `completed_builds`.
-
-If a phase raises, the build is marked faulty, receives an `error` field, and
-moves to `faulty_builds`.
-
-## How Templates Are Interpreted
-
-Templates are expanded by calling a Python function with `build_context`.
-
-The current demo template returns a dictionary with:
-
-- `kind`
-- `name`
-- `state`
-- `handle_fn`
-- `associates`
-
-The build process expects the spec to contain enough data to allocate one
-castle and zero or more associates. It does not currently validate the `kind`
-fields.
-
-Associates are interpreted recursively. Each associate spec can contain:
-
-- `kind`
-- `name`
-- `associate_type`
-- `data`
-- `layout`
-- `grid`
-- `children`
-
-The current template is not fully inert in a strict data-only sense. It contains
-function objects such as `handle_fn` and `associate_type` dictionaries whose
-values include setup/project/destroy functions. This is acceptable for the
-current experiment, but it is an important design tension if templates are meant
-to become pure data later.
-
-## Runtime Participation
-
-### `RT`
-
-`RT` owns the timing and registries:
-
-- it receives build requests
-- it expands templates
-- it creates live records
-- it calls associate setup functions
-- it applies layout
-- it creates routes
-- it activates records
-- it later delivers messages and projects dirty associates
-
-### Castles
-
-During build, castles are allocated as inactive records. They do not create Tk
-widgets. They receive a `handle_fn` from the template and are given inbox/outbox
-queues.
-
-After activation, active castles process messages in
-`process_castle_messages()`.
-
-### Associates
-
-During build, associates are first allocated as inactive records with no Tk
-widget. Later, `construct_widgets(build)` calls each associate type's `setup_fn`
-to create or attach the actual Tk widget.
-
-Associate records separate projection targets, widget observations, and
-projector bookkeeping into `desired`, `observed`, and `private`.
-
-Associate types live in `src/tkmachina/associates.py`. Current types include:
-
-- `WINDOW_ASSOCIATE_TYPE`
-- `BUTTON_ASSOCIATE_TYPE`
-- `LABEL_ASSOCIATE_TYPE`
-
-### Widgets
-
-Tk widgets are created only in associate setup functions.
-
-The build process itself does not know how to create a button, label, or
-Toplevel. It knows how to call the associate type's `setup_fn` with an
-appropriate parent.
-
-### Routes
-
-Routes are runtime-owned records. During build, default routes are created from
-every associate outbox to the host castle inbox.
-
-## Invariants
-
-### Before Build
-
-These conditions should hold before `process_build(build)` runs:
-
-- `build["request"]` is a build request.
-- `build["spec"]` is `None`.
-- `build["castle_ids"]`, `build["associate_ids"]`, and `build["route_ids"]` are
-  empty lists.
-- `setup_tk_bootstrap()` has been called before any top-level Tk associate is
-  constructed.
-- The build request has a callable `template_fn`.
-
-### During Build
-
-The process assumes:
-
-- template expansion happens before shell allocation
-- castle shell allocation happens before associate shell allocation
-- associate shell allocation happens before widget construction
-- parent associates are allocated and constructed before their children
-- routes are created before activation
-- records remain inactive until `activate_build(build)`
-
-### After Successful Build
-
-After successful activation:
-
-- created castle IDs exist in `RT.castles`
-- created associate IDs exist in `RT.associates`
-- created route IDs correspond to active routes in `RT.routes`
-- created castles are active if `activate_when_complete` was true
-- created associates are active if `activate_when_complete` was true
-- created routes are active if `activate_when_complete` was true
-- constructed associates have `tk` set to a concrete widget
-- newly constructed associates have been marked dirty at least once
-
-## Ordering Notes
-
-Ordering is central to the current design.
-
-`process_build(build)` currently orders phases like this:
+The runtime tick currently runs:
 
 ```python
-expand_template(build)
-allocate_castle_shells(build)
-allocate_associate_shells(build)
-construct_widgets(build)
-apply_layout(build)
-wire_default_routes(build)
-append_extra_routes(build)
-activate_build(build)
+process_incoming_builds()
+deliver_messages()
+process_castle_messages()
+reconcile_dirty_castles()
+process_structural_requests()
+project_dirty_associates()
 ```
 
-Important ordering assumptions:
+This means normal submitted builds happen before message delivery in a tick.
+Scheduled structural operations happen after castle reconciliation and before
+associate projection.
 
-- `build["spec"]` exists before any allocation.
-- `build["castle_ids"][0]` exists before associate allocation.
-- Associate allocation is recursive and parent-first.
-- Widget construction follows `build["associate_ids"]`, which currently
-  preserves parent-before-child order.
-- A child widget can only be constructed correctly if its parent associate has
-  already had a chance to set `child_tk_parent` or `tk`.
-- Layout is applied after widgets exist.
-- Routes are inactive until all widget/layout work is complete.
-- Activation comes last.
+ADR-0013 is the current structural scheduling rule: structural requests execute
+in queue order as lifecycle operations. A replacement is not split into a
+global delete phase and a later global build phase.
+
+## Failure Behavior
+
+`execute_build_request(request)` wraps `process_build(build)` in a failure
+boundary.
+
+On failure:
+
+- build status becomes `faulty`
+- `cleanup_failed_build(build)` revokes global exports
+- failed parent spot placement is detached if needed
+- created widgets are destroyed
+- build-created runtime records are unregistered
+- the build record moves to `faulty_builds`
+
+This is deliberately simple, but it preserves runtime integrity for the current
+model.
 
 ## Responsibilities And Non-Responsibilities
 
-### Build Responsibilities
+`process_build(build)` is responsible for construction.
 
-`process_build(build)` is responsible for coordinating the transition from a
-build request to live inactive records, then to active records.
+It is not responsible for:
 
-It owns the order of the build phases.
+- interpreting messages
+- deciding desired associate state from castle state
+- projecting dirty associates
+- computing an optimal tree edit plan
+- preserving descendant structural intent across ancestor replacement
+- hiding/showing widgets as a structural operation
 
-It is responsible for ensuring records are registered before later phases depend
-on them.
-
-It is responsible for ensuring widgets are constructed before layout is applied.
-
-It is responsible for ensuring routes are wired before activation.
-
-### Template Responsibilities
-
-The template describes what should exist.
-
-In the current code, the template also supplies function references and
-associate type dictionaries. This is convenient but not pure data.
-
-Templates should not create live castles, associates, widgets, or routes.
-
-### Associate Type Responsibilities
-
-Associate types own widget-specific construction, projection, and destruction.
-
-The build process does not know how a button, label, or window works; it only
-calls the functions named by the associate type.
-
-### Castle Responsibilities
-
-Castles own local state and local meaning.
-
-The build process gives a castle its initial state and handler reference, but it
-does not interpret castle messages.
-
-### What Should Not Happen During Build
-
-The build process should not:
-
-- process castle inbox messages
-- deliver semantic events
-- call castle handlers
-- interpret user interactions
-- project dirty associates as a separate phase
-- let templates create live Tk widgets
-- let templates directly mutate runtime registries
-- activate partial builds
-- treat route delivery as active before `activate_build(build)`
+Visibility, when supported, should be ordinary associate `desired` state and
+projection. It is not build, clearing, or replacement.
 
 ## Known Risks / Open Questions
 
-### Template Inertness Is Partial
-
-The design says templates should be inert. The current template returns function
-objects in `handle_fn` and associate type dictionaries containing setup,
-project, and destroy functions.
-
-That may be fine for this Python experiment, but it is not a pure serializable
-spec. A future design may need a registry lookup by symbolic type name instead
-of embedding function objects.
-
-### Castle Hierarchy Is Minimal
-
-`allocate_castle_shells(build)` supports one top-level castle and recursive
-child castle declarations.
-
-Multiple sibling top-level castle specs are not implemented.
-
-### `parent_castle` And `slot`
-
-Build requests can carry `parent_castle` and `slot`. If `parent_castle` is
-provided, the built root castle is attached into that parent slot.
-
-The current slot model is a named entry in `parent_castle["children"]`.
-
-### Build Is Mostly Synchronous
-
-Although there are build queues, `process_incoming_builds()` currently processes
-each build request to completion immediately inside one runtime tick.
-
-There is no incremental multi-tick build progression yet.
-
-### Failure Cleanup Is Basic
-
-If a build phase fails after some records or widgets have already been created,
-the runtime revokes build-created global exports, destroys build-created
-associate widgets, removes build-created routes, and unregisters build-created
-associates and castles.
-
-### Route Semantics Are Minimal
-
-All associates receive default routes to the host castle inbox, including label
-associates that do not emit messages in the current demo.
-
-This is simple and harmless for now, but the future design may distinguish
-emitting associates from non-emitting associates.
-
-### Validation Is Absent
-
-The build process does not validate:
-
-- template `kind` values
-- required keys
-- duplicate associate names
-- associate type shape
-- layout option shape
-- route shape
-- missing parent widgets
-
-Errors currently surface as ordinary Python exceptions.
-
-### Activation Does Not Project
-
-`activate_build(build)` marks records active but does not project dirty
-associates. Projection happens later in `project_dirty_associates()`, usually in
-the same `runtime_tick()` after `process_incoming_builds()`.
-
-This ordering is currently intentional, but it should remain explicit.
-
-### Tk Master Is Global Runtime State
-
-Top-level associate construction depends on global `RT.tk_master`. This matches
-the current runtime-module idea, but it means build cannot construct top-level
-Tk widgets before `setup_tk_bootstrap()` has run.
-
-### Destroy Ceremony Is Separate
-
-`destroy_all()` now has a clearer ceremony, but it is not build-specific. It
-does not destroy only the records created by a specific build. It tears down the
-runtime globally.
-
-That is acceptable for the demo, but not enough for dynamic build/unbuild
-behavior.
+- `slot` still exists as a compatibility request field. New code should prefer
+  `child_name` and `parent_spot`.
+- Castle specs may still provide `name` as a temporary fallback for
+  `template_name`; new templates should use `template_name`.
+- Template specs still use direct Python function references and associate type
+  dictionaries. This is useful now but not serializable.
+- Cleanup and destruction are still simple runtime ceremonies. They are better
+  than the first demo version, but not yet a complete resource lifecycle model.
+- Scheduled structural operations currently target recorded castle ids and spot
+  names. Future address/path semantics may become useful.
+- Associate `data` is accepted as a temporary fallback for `desired`; it should
+  eventually disappear.

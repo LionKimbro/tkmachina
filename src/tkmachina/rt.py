@@ -65,6 +65,17 @@ def make_id(kind):
     return f"{kind}:{_next_ids[kind]}"
 
 
+def record_label(record):
+    return record.get("template_name") or record.get("name") or record.get("id")
+
+
+def get_spec_template_name(spec):
+    template_name = spec.get("template_name", spec.get("name"))
+    if template_name is None:
+        raise ValueError("castle spec requires template_name")
+    return template_name
+
+
 def make_build_request(
     template_fn,
     build_context=None,
@@ -101,7 +112,7 @@ def setup_global_castles():
     castle = {
         "kind": "castle",
         "id": castle_id,
-        "name": TRACE_CASTLE,
+        "template_name": TRACE_CASTLE,
         "state": {
             "entries": [],
             "version": 0,
@@ -138,8 +149,8 @@ def add_trace(text):
         {
             "kind": "event",
             "type": "trace_changed",
-            "origin": trace_castle["name"],
-            "emitter": trace_castle["name"],
+            "origin": TRACE_CASTLE,
+            "emitter": TRACE_CASTLE,
             "payload": {
                 "version": version,
                 "text": text,
@@ -244,10 +255,11 @@ def get_castle_id(castle_or_id):
 
 def allocate_castle_shell(build, spec, parent_castle_id=None, child_name=None):
     castle_id = make_id("castle")
+    template_name = get_spec_template_name(spec)
     castle = {
         "kind": "castle",
         "id": castle_id,
-        "name": spec["name"],
+        "template_name": template_name,
         "parent": parent_castle_id,
         "child_name": child_name,
         "state": dict(spec.get("state", {})),
@@ -264,7 +276,7 @@ def allocate_castle_shell(build, spec, parent_castle_id=None, child_name=None):
     castles[castle_id] = castle
     build["castle_specs"][castle_id] = spec
     build["castle_ids"].append(castle_id)
-    trace.append(f"phase: allocated castle shell {castle['name']}")
+    trace.append(f"phase: allocated castle shell {record_label(castle)}")
 
     if parent_castle_id is not None:
         parent_castle = castles[parent_castle_id]
@@ -272,7 +284,7 @@ def allocate_castle_shell(build, spec, parent_castle_id=None, child_name=None):
             raise ValueError(f"parent already has a child castle: {child_name}")
         parent_castle["children"][child_name] = castle_id
         trace.append(
-            f"phase: attached child castle {castle['name']} as {child_name}"
+            f"phase: attached child castle {record_label(castle)} as {child_name}"
         )
 
     for child_spec in spec.get("child_castles", []):
@@ -320,7 +332,8 @@ def resolve_export_target(build, target_spec):
     target_kind = target_spec["kind"]
 
     if target_kind == "castle":
-        castle_id = find_built_castle_id(build, target_spec["name"])
+        template_name = target_spec.get("template_name", target_spec.get("name"))
+        castle_id = find_built_castle_id_by_template_name(build, template_name)
         return "castle", castle_id
 
     raise ValueError(f"unknown export target spec kind: {target_kind}")
@@ -399,7 +412,9 @@ def allocate_spot_record(build, castle_id, spot_spec, parent_spot_name):
     castle = castles[castle_id]
     spot_name = spot_spec["name"]
     if spot_name in castle["spots"]:
-        raise ValueError(f"duplicate spot in castle {castle['name']}: {spot_name}")
+        raise ValueError(
+            f"duplicate spot in castle {record_label(castle)}: {spot_name}"
+        )
 
     spot_id = make_id("spot")
     spot = {
@@ -420,7 +435,7 @@ def allocate_spot_record(build, castle_id, spot_spec, parent_spot_name):
     if parent_spot_name is not None:
         castle["spots"][parent_spot_name]["children"].append(spot_name)
 
-    trace.append(f"phase: allocated spot {spot_name} for {castle['name']}")
+    trace.append(f"phase: allocated spot {spot_name} for {record_label(castle)}")
 
     for child_spot_spec in spot_spec.get("children", []):
         allocate_spot_record(build, castle_id, child_spot_spec, spot_name)
@@ -465,8 +480,8 @@ def apply_parent_spot_placement(build):
     root_associate = get_child_castle_root_associate(child_castle)
     place_associate_in_spot(root_associate, parent_associate_id, parent_spot)
     trace.append(
-        f"phase: placed child castle {child_castle['name']} "
-        f"in {parent_castle['name']}.{parent_spot_name}"
+        f"phase: placed child castle {record_label(child_castle)} "
+        f"in {record_label(parent_castle)}.{parent_spot_name}"
     )
 
 
@@ -494,7 +509,8 @@ def resolve_placement_occupant(castle, placement):
     if placement_kind == "associate":
         if placement_name not in castle["associates"]:
             raise ValueError(
-                f"unknown associate placement {placement_name} in {castle['name']}"
+                f"unknown associate placement {placement_name} "
+                f"in {record_label(castle)}"
             )
         return {
             "kind": "associate",
@@ -504,7 +520,8 @@ def resolve_placement_occupant(castle, placement):
     if placement_kind == "child_castle":
         if placement_name not in castle["children"]:
             raise ValueError(
-                f"unknown child castle placement {placement_name} in {castle['name']}"
+                f"unknown child castle placement {placement_name} "
+                f"in {record_label(castle)}"
             )
         return {
             "kind": "child_castle",
@@ -561,7 +578,7 @@ def validate_placed_child_castle(castle, spot):
         and not root_associate["associate_type"].get("embeddable", True)
     ):
         raise ValueError(
-            f"child castle root is not embeddable: {child_castle['name']}"
+            f"child castle root is not embeddable: {record_label(child_castle)}"
         )
 
 
@@ -637,7 +654,7 @@ def get_child_castle_root_associate(child_castle):
     if len(root_associate_ids) != 1:
         raise ValueError(
             f"placed child castle must have exactly one root associate: "
-            f"{child_castle['name']}"
+            f"{record_label(child_castle)}"
         )
 
     return associates[root_associate_ids[0]]
@@ -746,7 +763,8 @@ def resolve_route_endpoint(build, endpoint_spec):
         return "castle", castle_id, endpoint_box
 
     if endpoint_kind == "castle":
-        castle_id = find_built_castle_id(build, endpoint_spec["name"])
+        template_name = endpoint_spec.get("template_name", endpoint_spec.get("name"))
+        castle_id = find_built_castle_id_by_template_name(build, template_name)
         return "castle", castle_id, endpoint_box
 
     if endpoint_kind == "associate":
@@ -756,12 +774,15 @@ def resolve_route_endpoint(build, endpoint_spec):
     raise ValueError(f"unknown route endpoint spec kind: {endpoint_kind}")
 
 
-def find_built_castle_id(build, castle_name):
+def find_built_castle_id_by_template_name(build, template_name):
+    if template_name is None:
+        raise KeyError("built castle lookup requires template_name")
+
     for castle_id in build["castle_ids"]:
-        if castles[castle_id]["name"] == castle_name:
+        if castles[castle_id]["template_name"] == template_name:
             return castle_id
 
-    raise KeyError(f"built castle not found for route endpoint: {castle_name}")
+    raise KeyError(f"built castle not found for template_name: {template_name}")
 
 
 def find_built_associate_id(build, associate_name):
@@ -807,11 +828,11 @@ def schedule_clearing(spot_name):
         {
             "kind": "clearing",
             "castle_id": target["id"],
-            "castle_name": target["name"],
+            "target_template_name": record_label(target),
             "spot_name": spot_name,
         }
     )
-    trace.append(f"scheduled clearing {target['name']}.{spot_name}")
+    trace.append(f"scheduled clearing {record_label(target)}.{spot_name}")
 
 
 def schedule_building(
@@ -825,14 +846,14 @@ def schedule_building(
         {
             "kind": "building",
             "castle_id": target["id"],
-            "castle_name": target["name"],
+            "target_template_name": record_label(target),
             "spot_name": spot_name,
             "template_fn": template_fn,
             "build_context": build_context or {},
             "child_name": child_name or spot_name,
         }
     )
-    trace.append(f"scheduled building {target['name']}.{spot_name}")
+    trace.append(f"scheduled building {record_label(target)}.{spot_name}")
 
 
 def schedule_replacement(
@@ -846,14 +867,14 @@ def schedule_replacement(
         {
             "kind": "replacement",
             "castle_id": target["id"],
-            "castle_name": target["name"],
+            "target_template_name": record_label(target),
             "spot_name": spot_name,
             "template_fn": template_fn,
             "build_context": build_context or {},
             "child_name": child_name or infer_spot_child_name(target, spot_name),
         }
     )
-    trace.append(f"scheduled replacement {target['name']}.{spot_name}")
+    trace.append(f"scheduled replacement {record_label(target)}.{spot_name}")
 
 
 def require_target_castle():
@@ -965,7 +986,7 @@ def deliver_messages():
                 destination_box.append(delivered_message)
                 trace.append(
                     f"delivered {message['type']} from "
-                    f"{source['name']} to {destination['name']}"
+                    f"{record_label(source)} to {record_label(destination)}"
                 )
 
 
@@ -1009,7 +1030,7 @@ def reconcile_dirty_castles():
             continue
 
         reconcile_fn(castle)
-        trace.append(f"reconciled {castle['name']}")
+        trace.append(f"reconciled {record_label(castle)}")
 
 
 def project_dirty_associates():
@@ -1084,7 +1105,10 @@ def execute_structural_replacement(request):
 
 
 def format_structural_error(request, exc):
-    target_name = request.get("castle_name", request.get("castle_id", "?"))
+    target_name = request.get(
+        "target_template_name",
+        request.get("castle_id", "?"),
+    )
     spot_name = request.get("spot_name", "?")
     return f"{target_name}.{spot_name}: {exc}"
 
@@ -1097,7 +1121,9 @@ def clear_spot_occupant(castle_id, spot_name):
     spot = castle["spots"][spot_name]
     occupant = spot["occupant"]
     if occupant is None:
-        trace.append(f"structural: cleared already-empty {castle['name']}.{spot_name}")
+        trace.append(
+            f"structural: cleared already-empty {record_label(castle)}.{spot_name}"
+        )
         return
 
     if occupant["kind"] == "associate":
@@ -1112,7 +1138,7 @@ def clear_spot_occupant(castle_id, spot_name):
     destroy_castle_subtree(child_castle_id)
     spot["occupant"] = None
     castle["placements"].pop(spot_name, None)
-    trace.append(f"structural: cleared {castle['name']}.{spot_name}")
+    trace.append(f"structural: cleared {record_label(castle)}.{spot_name}")
 
 
 def build_structural_child_castle(request):
@@ -1132,9 +1158,9 @@ def build_structural_child_castle(request):
     )
     build = execute_build_request(build_request)
     if build is None:
-        trace.append(f"structural: build failed for {castle['name']}.{spot_name}")
+        trace.append(f"structural: build failed for {record_label(castle)}.{spot_name}")
     else:
-        trace.append(f"structural: built {castle['name']}.{spot_name}")
+        trace.append(f"structural: built {record_label(castle)}.{spot_name}")
 
 
 def destroy_castle_subtree(root_castle_id):

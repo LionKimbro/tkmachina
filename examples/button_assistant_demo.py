@@ -25,7 +25,7 @@ from tkmachina.associates import (
 def demo_template(build_context):
     return {
         "kind": "castle_spec",
-        "name": "demo_castle",
+        "template_name": "demo_castle",
         "state": {
             "press_count": 0,
             "button_enabled": True,
@@ -196,7 +196,7 @@ def demo_template(build_context):
 def trace_log_castle_template(build_context):
     return {
         "kind": "castle_spec",
-        "name": "trace_log_castle",
+        "template_name": "trace_log_castle",
         "state": {
             "trace_version": 0,
         },
@@ -212,7 +212,7 @@ def trace_log_castle_template(build_context):
                 },
                 "to": {
                     "kind": "castle",
-                    "name": "trace_log_castle",
+                    "template_name": "trace_log_castle",
                     "box": "inbox",
                 },
             },
@@ -239,7 +239,7 @@ def trace_log_castle_template(build_context):
 
 
 def handle_demo_castle_message(castle, message):
-    castle_label = f"{castle['name']}[{castle['id']}]"
+    castle_label = f"{castle['template_name']}[{castle['id']}]"
 
     if message["type"] == "button_pressed" and message["origin"] == "priority_button":
         castle["state"]["press_count"] += 1

@@ -35,3 +35,33 @@ Possible philosophy:
 IDs internally, names locally, paths at boundaries.
 ```
 
+
+## Decision
+
+TkMachina does not use castle names as global object addresses.
+
+Runtime communication is governed by routes, and routes store resolved runtime
+IDs.
+
+Runtime IDs are the true live-object identity.
+
+Names are local authoring labels:
+
+- associate names are local to a castle
+- child names are local to a parent castle
+- template names describe what was built
+- global names exist only through explicit global export
+
+The live castle field formerly called `name` is now `template_name`.
+
+`template_name` is descriptive metadata. It is useful for diagnostics,
+build-local route/export lookup, and human-readable traces, but it is not a
+runtime address and is not required to be globally unique.
+
+No general path language is introduced by this ADR.
+
+Earlier references in this ADR to `find_built_castle_id(...)` and castle
+`name` refer to the pre-decision implementation. The current implementation
+uses `template_name` for descriptive castle metadata and resolves build-local
+castle references through `find_built_castle_id_by_template_name(...)`.
+
