@@ -148,6 +148,29 @@ def test_entry_effective_events_include_opt_ins():
     return [step_verify_effective_events]
 
 
+def test_projection_does_not_emit_text_changed():
+    def step_project_desired_text():
+        entry_associate = app["entry"]
+        entry_associate["outbox"].clear()
+        rt.target_associate(entry_associate)
+        rt.set_desired("text", "projected text")
+        rt.project_dirty_associates()
+        return ("next", None)
+
+    def step_verify_no_text_changed():
+        entry_associate = app["entry"]
+        if entry_associate["observed"]["text"] != "projected text":
+            return (
+                "fail",
+                f"observed text was {entry_associate['observed']['text']!r}",
+            )
+        if entry_associate["outbox"]:
+            return ("fail", f"projection emitted messages: {entry_associate['outbox']!r}")
+        return ("success", None)
+
+    return [step_project_desired_text, step_verify_no_text_changed]
+
+
 if __name__ == "__main__":
     harness.set_timeout(3000)
     harness.set_resetfn(reset)
@@ -155,6 +178,7 @@ if __name__ == "__main__":
     harness.add_test("entry submitted bubbles to outer castle", test_submitted_bubbles_to_outer_castle())
     harness.add_test("entry focused bubbles to outer castle", test_focused_bubbles_to_outer_castle())
     harness.add_test("entry effective events include opt-ins", test_entry_effective_events_include_opt_ins())
+    harness.add_test("entry projection does not emit text_changed", test_projection_does_not_emit_text_changed())
     harness.run_host(entry, "x")
     harness.print_results()
     if any(test["status"] != "success" for test in harness.tests):
