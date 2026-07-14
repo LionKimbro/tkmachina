@@ -23,17 +23,6 @@ Wishlist:
 - A diagram showing desired -> projection -> widget and widget -> observed /
   event flow.
 
-### Implement Frame Associate
-
-- Origin date: 2026-07-05
-- Source: manual/guidance3 follow-up
-- Status: Open
-- Priority: Next
-
-Implement a `frame` associate after the initial manual pass. It should provide
-a simple embeddable container associate that can host child spots without
-introducing a larger widget family design question.
-
 ### Design And Implement Text Associate Family
 
 - Origin date: 2026-07-05
@@ -180,3 +169,35 @@ Questions to revisit:
 - Would direct placement apply only to local associates, or also to child castle roots?
 - How would direct placement interact with Toplevel-root castles?
 - What validation would the builder need before accepting such specs?
+
+## Completed
+
+### Implement Frame Associate
+
+- Origin date: 2026-07-05
+- Completed date: 2026-07-05
+- Source: manual/guidance3 follow-up
+- Status: Completed
+
+Implemented a `frame` associate as a simple embeddable container associate that
+can host child spots without introducing a larger widget family design question.
+
+The implementation includes hosted Tk coverage in
+`guitests/test_frame_associate_hosted.py`.
+
+### Implement LabelFrame Associate
+
+- Origin date: 2026-07-05
+- Completed date: 2026-07-05
+- Source: Frame associate follow-up
+- Status: Completed
+
+Implemented a `label_frame` associate as an embeddable labeled container
+associate that can host child spots.
+
+The implementation shares the ordinary frame container projection path for
+child hosting, padding, width, and height. It also models caption text through
+`desired["text"]` and `observed["text"]`.
+
+The implementation includes hosted Tk coverage in
+`guitests/test_label_frame_associate_hosted.py`.

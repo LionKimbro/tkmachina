@@ -1,109 +1,54 @@
 # TkMachina Manual
 
-This is the living manual for TkMachina. It is intentionally rough at first:
-the purpose is to make the public promises of the system visible before the
-associate library grows much larger.
+TkMachina is a Tkinter-backed GUI runtime. Interface regions are modeled as
+**castles** (bounded state machines), each widget is tended by an **associate**
+(a modeled companion that projects desired state and translates raw Tk activity
+into semantic events), and everything communicates through **queues** and
+**routes** driven by a periodic **runtime tick**.
 
-## Table Of Contents
+This manual is regenerated from the code (`src/tkmachina/rt.py`,
+`src/tkmachina/associates.py`). Where a statement here disagrees with the code,
+the code is right and this manual is stale.
 
-### Start Here
+## Start here
 
-- [Why Use TkMachina?](why-tkmachina.md)
+- [Why TkMachina?](why-tkmachina.md) — when to use it and what it buys you.
+- [Concepts](concepts.md) — the whole model in one pass.
 
-### 1. Tutorial
+## Conceptual chapters
 
-Planned tutorial path:
+- [Castles](castles.md) — bounded state machines: state, handlers, reconcile.
+- [Associates](associates.md) — widget companions: `desired`, `observed`, `private`, events.
+- [Spots and placements](spots.md) — where associates and child castles are placed.
+- [Routes and messages](routes-and-messages.md) — how event records move.
+- [Builds and structural changes](builds.md) — templates, build phases, dynamic replacement.
+- [The runtime cycle](runtime-cycle.md) — bootstrap, the tick, teardown.
 
-- Tutorial 1: A window with a button and label
-- Tutorial 2: Entry input and semantic events
-- Tutorial 3: A child castle inside a spot
-- Tutorial 4: Replacing a child castle
-- Tutorial 5: Reading the global trace
+## Reference
 
-### 2. Conceptual Overview
+- [Associate reference](associate-reference.md) — the built-in associate types.
+- [API reference](api-reference.md) — the public `rt` and `associates` functions.
+- [Glossary](glossary.md) — terms in one place.
 
-- [How Associates Work](concepts-associates.md)
-- Planned: Castles
-- Planned: Spots and placements
-- Planned: Routes and messages
-- Planned: Builds
-- Planned: Dirty projection
-- Planned: Structural changes
-- Planned: Global castles
+## The shape of an interaction
 
-### 3. Core Mechanics
+Every user interaction follows the same path, and the manual is organized around
+it:
 
-Planned lifecycle chapters:
+```text
+raw Tk happening
+  -> the widget's associate translates it
+  -> associate emits a semantic event into its outbox
+  -> routes deliver the event to a castle inbox
+  -> the castle's handler updates owned state
+  -> the castle sets desired state on its associates
+  -> dirty associates project desired state onto widgets
+  -> the trace records the path
+```
 
-- Build request submission
-- Template expansion
-- Castle, associate, and spot allocation
-- Placement validation
-- Widget construction
-- Layout
-- Route wiring
-- Activation
-- Runtime ticks
-- Message delivery
-- Castle reconciliation
-- Associate projection
-- Scheduled structural mutation
-- Destruction
+## Status
 
-### 4. Associate Reference
-
-- [Associate Reference](associate-reference.md)
-- Current associates:
-  - `window`
-  - `button`
-  - `label`
-  - `entry`
-- Deferred associate families:
-  - Text-backed associates
-  - Treeview-backed associates
-  - Canvas-backed associates
-
-### 5. API Reference
-
-Planned API entries:
-
-- `setup_tk_bootstrap`
-- `make_build_request`
-- `submit_build_request`
-- `run`
-- `target_castle`
-- `schedule_clearing`
-- `schedule_building`
-- `schedule_replacement`
-- `target_associate`
-- `get_desired`
-- `get_observed`
-- `set_desired`
-- `set_data`
-- `mark_dirty`
-- `add_trace`
-- `get_trace_entries`
-- `destroy_all`
-
-### 6. Glossary
-
-- [Glossary](glossary.md)
-
-## Current Manual Priorities
-
-The manual should answer:
-
-- What is a castle?
-- What is an associate?
-- What is `desired`?
-- What is `observed`?
-- What is `private`?
-- What is a spot?
-- What is a placement?
-- What is a route?
-- What is an event?
-- What is a structural request?
-- What does a user get to rely on?
-
-The manual is also an architecture test. If an associate reference page cannot
-describe one clear public promise, the associate may need to be split.
+The runtime, the six core associate types (`window`, `frame`, `label_frame`,
+`button`, `label`, `entry`), spots, routes, builds, structural replacement, the
+global trace castle, and the tick loop are implemented. Text-, Treeview-, and
+Canvas-backed associate families are not yet implemented.

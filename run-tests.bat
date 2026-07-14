@@ -12,6 +12,12 @@ echo Running hosted Tk tests...
 python guitests\test_runtime_hosted.py 2>&1
 if errorlevel 1 exit /b %errorlevel%
 
+python guitests\test_frame_associate_hosted.py 2>&1
+if errorlevel 1 exit /b %errorlevel%
+
+python guitests\test_label_frame_associate_hosted.py 2>&1
+if errorlevel 1 exit /b %errorlevel%
+
 python guitests\test_entry_associate_hosted.py 2>&1
 if errorlevel 1 exit /b %errorlevel%
 

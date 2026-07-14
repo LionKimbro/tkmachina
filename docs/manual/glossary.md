@@ -1,116 +1,91 @@
 # Glossary
 
-## Active
+Terms as used in the code. Cross-references point to the chapter that defines
+each in depth.
 
-Runtime state indicating that a castle, associate, spot, or route participates
-in ordinary runtime work.
+**Active** — a castle, associate, spot, or route becomes active at build
+activation. Only active castles/associates are processed by the tick.
 
-## Associate
+**Associate** — the modeled companion to one Tk widget. Holds `desired`,
+`observed`, and `private` surfaces, emits semantic events, and projects desired
+state. See [associates](associates.md). (Historically called a "Lady".)
 
-A Little-Castles-side companion to a Tk widget or widget-like resource. An
-associate owns desired state, modeled observed state, private implementation
-state, a concrete widget reference, and an outbox for emitted messages.
+**Associate type** — a dict of flags and lifecycle functions
+(`setup_fn`, `project_fn`, `destroy_fn`, `default_events`, `can_host_children`,
+`embeddable`) shared by all associates of that kind. See
+[associate reference](associate-reference.md).
 
-## Associate Type
+**Build** — the process that expands a template into castle/associate/spot/route
+records and activates them. See [builds](builds.md).
 
-The semantic contract and lifecycle functions for a kind of associate. An
-associate type is defined by the Little Castles promise it makes, not only by
-the Tk widget it uses internally.
+**Build request** — a queued instruction to run a build, optionally mounting the
+result into a parent castle's spot.
 
-## Build
+**Castle** — a bounded state machine that owns application meaning: state, a
+handler, an optional reconcile function, associates, child castles, and spots.
+See [castles](castles.md).
 
-The runtime-owned process of turning a template and build request into live
-castle, associate, spot, route, and widget records.
+**Child castle** — a castle mounted as an occupant of another castle's spot.
 
-## Build Request
+**Desired** — an associate's widget-facing projection target (e.g. `text`,
+`enabled`). Set via `rt.set_desired`.
 
-A request submitted to RT asking it to build a castle from a template,
-optionally as a child of an existing castle and optionally into a parent spot.
+**Dirty** — marked for work this tick: dirty castles are reconciled, dirty
+associates are projected.
 
-## Castle
+**Effective events** — the events an associate actually emits:
+`default_events | spec.events - spec.do_not_listen`.
 
-A runtime participant that owns state, an inbox, an outbox, local associates,
-child castles, spots, placements, and optional handlers/reconcilers.
+**Emitter / origin** — identity fields on an event record naming who produced it.
 
-## Child Castle
+**Event (message / event record)** — a semantic data record
+(`{kind, type, origin, emitter, payload}`) that moves along routes into castle
+inboxes. See [routes and messages](routes-and-messages.md).
 
-A castle contained by another castle in the logical parent/child hierarchy.
-A parent may place a child castle into one of its spots, but may not lay out
-through it.
+**Global castle** — a castle registered under a global name via `exports`,
+addressable as a route endpoint. The built-in `global_trace` castle is one.
 
-## Desired
+**Headless castle** — a castle with no associates/surface (e.g. the trace
+castle).
 
-`associate["desired"]`. The projection target: values that the castle or RT
-wants projected onto the concrete widget.
+**Inbox / outbox** — a castle has both; an associate has an outbox. Routes move
+messages from outboxes to inboxes.
 
-## Dirty Associate
+**Observed** — an associate's public, present-tense fact surface, maintained
+regardless of whether an event is emitted. Read via `rt.get_observed`.
 
-An associate whose desired state needs projection.
+**Placement** — a castle's mapping of spot name to occupant
+(`{kind: "associate" | "child_castle", name}`). See [spots](spots.md).
 
-## Dirty Castle
+**Private** — an associate's implementation detail (Tk vars, trace ids,
+projection bookkeeping); not part of the public contract.
 
-A castle whose state should be reconciled into desired associate state.
+**Projection** — applying `desired` onto the concrete widget via the type's
+`project_fn`, diffing so it only reconfigures on change.
 
-## Effective Events
+**Reconcile (`reconcile_fn`)** — an optional per-castle derived pass run after
+message handling for dirty castles.
 
-The semantic events an associate instance will emit:
+**Route** — a declared delivery path from one endpoint box to another. Default
+routes wire associate outboxes to their host castle and child castles to their
+parents. See [routes and messages](routes-and-messages.md).
 
-```text
-associate_type.default_events
-union associate_spec.events
-minus associate_spec.do_not_listen
-```
+**Runtime (`rt`)** — the module holding all registries and the tick loop. The
+system is deliberately a module of plain dicts so the live world is inspectable.
 
-## Event
+**Spot** — a named place inside a castle occupied by an associate or a child
+castle; spots nest. Replaces the older "slot". See [spots](spots.md).
 
-A semantic message describing something that happened, such as
-`button_pressed`, `submitted`, or `text_changed`.
+**Structural request** — a queued `clearing`, `building`, or `replacement` of a
+spot's occupant, executed on the tick.
 
-## Global Castle
+**Tick (`runtime_tick`)** — the ~50ms cycle: process builds, deliver messages,
+process castle messages, reconcile dirty castles, process structural requests,
+project dirty associates. See [the runtime cycle](runtime-cycle.md).
 
-A named castle exposed through RT's global registry. Current examples include
-the global trace castle.
+**Trace** — the inspectable history: the low-level `rt.trace` list of phase
+strings, and the application-level global trace castle
+(`rt.add_trace` / `rt.get_trace_entries`).
 
-## Observed
-
-`associate["observed"]`. The associate's public modeled-observation surface.
-It is intentionally maintained by the associate, but it is not a complete
-mirror of Tk.
-
-## Outbox
-
-A queue of messages emitted by a castle or associate.
-
-## Placement
-
-Initial or scheduled occupancy of a spot by a local associate or child castle.
-
-## Private
-
-`associate["private"]`. Associate implementation detail such as trace IDs,
-private Tk variables, projected-value caches, or suppression flags.
-
-## Projection
-
-The act of applying an associate's desired state to its concrete widget.
-
-## Reconcile
-
-Castle-owned interpretation of castle state into desired associate state.
-
-## Route
-
-A runtime record that moves messages from one outbox to another inbox.
-
-## Spot
-
-A named place in a castle's layout tree.
-
-## Structural Request
-
-A scheduled runtime request to clear, build, or replace spot occupancy.
-
-## Template
-
-A Python callable that returns a castle specification. Templates are class-like:
-they describe what should be built, but they are not live castles.
+**tk_master** — the single hidden, withdrawn Tk root created by
+`setup_tk_bootstrap`.

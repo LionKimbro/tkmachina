@@ -58,6 +58,30 @@ def make_entry_associate_type():
     }
 
 
+def make_frame_associate_type():
+    return {
+        "name": "frame",
+        "can_host_children": True,
+        "embeddable": True,
+        "default_events": [],
+        "setup_fn": setup_frame_associate,
+        "project_fn": project_frame_associate,
+        "destroy_fn": destroy_frame_associate,
+    }
+
+
+def make_label_frame_associate_type():
+    return {
+        "name": "label_frame",
+        "can_host_children": True,
+        "embeddable": True,
+        "default_events": [],
+        "setup_fn": setup_label_frame_associate,
+        "project_fn": project_label_frame_associate,
+        "destroy_fn": destroy_label_frame_associate,
+    }
+
+
 def wants_event(associate, event_type):
     return event_type in associate.get("effective_events", set())
 
@@ -287,6 +311,73 @@ def project_window_associate(associate):
         private["projected_size"] = desired_size
 
 
+def setup_frame_associate(associate, tk_parent):
+    desired = associate["desired"]
+    frame = ttk.Frame(tk_parent, padding=desired.get("padding", 0))
+    setup_container_associate(associate, frame)
+
+
+def project_frame_associate(associate):
+    project_container_associate_fields(associate)
+
+
+def setup_label_frame_associate(associate, tk_parent):
+    desired = associate["desired"]
+    observed = associate["observed"]
+    text = desired.get("text", observed.get("text", ""))
+    label_frame = ttk.LabelFrame(
+        tk_parent,
+        text=text,
+        padding=desired.get("padding", 0),
+    )
+    observed["text"] = text
+    associate["private"]["projected_text"] = text
+    setup_container_associate(associate, label_frame)
+
+
+def project_label_frame_associate(associate):
+    desired = associate["desired"]
+    private = associate["private"]
+    widget = associate["tk"]
+
+    project_container_associate_fields(associate)
+
+    if "text" in desired and widget.cget("text") != desired["text"]:
+        widget.config(text=desired["text"])
+        private["projected_text"] = desired["text"]
+
+    associate["observed"]["text"] = widget.cget("text")
+
+
+def setup_container_associate(associate, widget):
+    associate["tk"] = widget
+    associate["child_tk_parent"] = widget
+    associate["private"]["projected_padding"] = associate["desired"].get("padding", 0)
+    bind_common_widget_events(associate)
+
+
+def project_container_associate_fields(associate):
+    desired = associate["desired"]
+    private = associate["private"]
+    widget = associate["tk"]
+
+    desired_padding = desired.get("padding")
+    if (
+        desired_padding is not None
+        and private.get("projected_padding") != desired_padding
+    ):
+        widget.config(padding=desired_padding)
+        private["projected_padding"] = desired_padding
+
+    desired_width = desired.get("width")
+    if desired_width is not None and widget.cget("width") != desired_width:
+        widget.config(width=desired_width)
+
+    desired_height = desired.get("height")
+    if desired_height is not None and widget.cget("height") != desired_height:
+        widget.config(height=desired_height)
+
+
 def setup_button_associate(associate, tk_parent):
     def on_click():
         emit_event(associate, "button_pressed")
@@ -399,6 +490,21 @@ def destroy_widget_associate(associate):
         associate["tk"] = None
 
 
+def destroy_frame_associate(associate):
+    destroy_container_associate(associate)
+
+
+def destroy_label_frame_associate(associate):
+    destroy_container_associate(associate)
+    associate["private"].pop("projected_text", None)
+
+
+def destroy_container_associate(associate):
+    destroy_widget_associate(associate)
+    associate["child_tk_parent"] = None
+    associate["private"].pop("projected_padding", None)
+
+
 def destroy_entry_associate(associate):
     private = associate["private"]
     text_var = private.get("text_var")
@@ -428,3 +534,5 @@ WINDOW_ASSOCIATE_TYPE = make_window_associate_type()
 BUTTON_ASSOCIATE_TYPE = make_button_associate_type()
 LABEL_ASSOCIATE_TYPE = make_label_associate_type()
 ENTRY_ASSOCIATE_TYPE = make_entry_associate_type()
+FRAME_ASSOCIATE_TYPE = make_frame_associate_type()
+LABEL_FRAME_ASSOCIATE_TYPE = make_label_frame_associate_type()

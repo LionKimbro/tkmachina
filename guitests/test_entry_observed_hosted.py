@@ -117,8 +117,15 @@ def test_default_entry_emits_submitted_event():
     def step_type_and_focus():
         app["entry"]["tk"].delete(0, "end")
         app["entry"]["tk"].insert(0, "default submit")
+        app["entry"]["tk"].focus_set()
         app["entry"]["tk"].focus_force()
-        return ("next", 25)
+        return ("next", None)
+
+    def step_wait_for_focus():
+        if app["entry"]["tk"].focus_get() is app["entry"]["tk"]:
+            return ("next", None)
+        app["entry"]["tk"].focus_force()
+        return ("wait", 25)
 
     def step_submit():
         app["entry"]["tk"].event_generate("<Return>")
@@ -135,7 +142,7 @@ def test_default_entry_emits_submitted_event():
             return ("fail", f"unexpected payload: {message['payload']!r}")
         return ("success", None)
 
-    return [step_type_and_focus, step_submit, step_verify_submitted]
+    return [step_type_and_focus, step_wait_for_focus, step_submit, step_verify_submitted]
 
 
 def test_do_not_listen_suppresses_default_submitted_event():
@@ -150,8 +157,15 @@ def test_do_not_listen_suppresses_default_submitted_event():
     def step_type_and_focus():
         app["muted_entry"]["tk"].delete(0, "end")
         app["muted_entry"]["tk"].insert(0, "muted submit")
+        app["muted_entry"]["tk"].focus_set()
         app["muted_entry"]["tk"].focus_force()
-        return ("next", 25)
+        return ("next", None)
+
+    def step_wait_for_focus():
+        if app["muted_entry"]["tk"].focus_get() is app["muted_entry"]["tk"]:
+            return ("next", None)
+        app["muted_entry"]["tk"].focus_force()
+        return ("wait", 25)
 
     def step_submit():
         app["muted_entry"]["tk"].event_generate("<Return>")
@@ -165,6 +179,7 @@ def test_do_not_listen_suppresses_default_submitted_event():
     return [
         step_verify_effective_events,
         step_type_and_focus,
+        step_wait_for_focus,
         step_submit,
         step_verify_no_message,
     ]

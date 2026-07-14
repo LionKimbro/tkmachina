@@ -46,7 +46,8 @@ behavior should rarely require raw Tk.
 The project currently includes:
 
 - a module-shaped runtime in `src/tkmachina/rt.py`
-- associate types for `window`, `button`, `label`, and `entry`
+- associate types for `window`, `frame`, `label_frame`, `button`, `label`,
+  and `entry`
 - spots and placements for castle-owned layout
 - child-castle bubble-up routes
 - scheduled clearing/building/replacement

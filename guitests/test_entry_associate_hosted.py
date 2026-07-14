@@ -98,8 +98,15 @@ def test_text_changed_bubbles_to_outer_castle():
 def test_submitted_bubbles_to_outer_castle():
     def step_type_and_focus():
         set_entry_text("submitted text")
+        app["entry"]["tk"].focus_set()
         app["entry"]["tk"].focus_force()
-        return ("next", 25)
+        return ("next", None)
+
+    def step_wait_for_focus():
+        if app["entry"]["tk"].focus_get() is app["entry"]["tk"]:
+            return ("next", None)
+        app["entry"]["tk"].focus_force()
+        return ("wait", 25)
 
     def step_submit():
         app["entry"]["tk"].event_generate("<Return>")
@@ -114,7 +121,7 @@ def test_submitted_bubbles_to_outer_castle():
             return ("success", None)
         return ("fail", get_label_text("submit_label"))
 
-    return [step_type_and_focus, step_submit, step_pump, step_verify]
+    return [step_type_and_focus, step_wait_for_focus, step_submit, step_pump, step_verify]
 
 
 def test_focused_bubbles_to_outer_castle():

@@ -261,6 +261,8 @@ Important flags:
 Current built-in event defaults:
 
 - `WINDOW_ASSOCIATE_TYPE`: `window_resized`
+- `FRAME_ASSOCIATE_TYPE`: no default events
+- `LABEL_FRAME_ASSOCIATE_TYPE`: no default events
 - `BUTTON_ASSOCIATE_TYPE`: `button_pressed`
 - `ENTRY_ASSOCIATE_TYPE`: `submitted`
 - `LABEL_ASSOCIATE_TYPE`: no default events

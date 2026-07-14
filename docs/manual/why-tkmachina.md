@@ -1,141 +1,63 @@
-# Why Use TkMachina?
+# Why TkMachina?
 
-TkMachina is not a replacement for Tkinter.
+TkMachina is not a replacement for Tkinter. It is a way to build Tkinter
+applications as small live worlds of castles, associates, spots, routes,
+messages, and projected state.
 
-It is a way to build Tkinter applications as small live worlds made of castles,
-associates, spots, routes, messages, and projected state.
+Raw Tk is good — direct, mature, honest. Use it for small scripts, one-window
+tools, and quick utilities where direct widget code stays clear. TkMachina is
+for the point where you want more of the *running* application to be modeled and
+inspectable.
 
-Raw Tk is good. It is direct, mature, powerful, and honest. Use raw Tk when you
-want to directly operate widgets and the direct code is still clear.
+## The problem it solves
 
-TkMachina is for the point where you want more of the running application to be
-modeled.
+As a Tkinter app grows, meaning scatters across widget variables, callbacks,
+closures, bindings, `config(...)` calls, implicit layout, and `destroy(...)`
+calls. That is fine for a while, then the running application becomes hard to
+inspect, route, replace, or reason about.
 
-## Raw Tk Is Good
+Raw Tk asks: *what widget do I mutate?*
 
-Use raw Tk when direct widget programming is enough:
+TkMachina asks: *what state changed, what semantic event happened, and what
+should be projected?*
 
-- small scripts
-- one-window tools
-- simple callback apps
-- quick utility GUIs
-- direct widget manipulation
+## What it adds
 
-TkMachina is not trying to be the shortest path to a button. A raw Tk button is
-already short.
+- **Castles** — bounded, stateful UI regions that own application meaning.
+- **Associates** — modeled companions to widgets, with `desired` (what to
+  project), `observed` (modeled facts), and `private` (implementation) surfaces.
+- **Semantic events** — user and UI happenings become data records before they
+  become behavior.
+- **Spots and placements** — named places where associates or child castles are
+  placed, so embedding and replacement are first-class, not frame tricks.
+- **Routes and queues** — messages move along declared paths into inboxes, and
+  are processed on the tick.
+- **A global trace** — an inspectable history of what happened.
 
-## The Problem TkMachina Solves
+## The structural laws
 
-As Tkinter applications grow, meaning can become spread across:
-
-- widget variables
-- callbacks
-- closures
-- bindings
-- manual `config(...)` calls
-- implicit layout relationships
-- explicit `destroy(...)` calls
-- side effects
-
-That can be fine for a while. Eventually, though, the running application can
-become hard to inspect, replace, route, or reason about.
-
-TkMachina tries to centralize application meaning into:
-
-- castle state
-- associate desired state
-- associate observed state
-- semantic events
-- spots and placements
-- routes
-- reconciliation
-- projection
-- structural requests
-
-Raw Tk asks:
+TkMachina keeps a few distinctions sacred:
 
 ```text
-What widget do I mutate?
+Layout is not logic.
+A widget is not an application object; its associate mediates.
+A button is not behavior; it is an input port.
+Projection (desired state -> widget) is separate from application state.
+A castle does not expose its interior to arbitrary external mutation.
 ```
 
-TkMachina asks:
+## The cost and the payoff
 
-```text
-What state changed, what semantic event happened,
-and what should be projected?
-```
+The cost is machinery: TkMachina is a modeled Tkinter, not a thinner one. The
+payoff is not fewer lines — it is that the running UI becomes inspectable,
+replaceable, routable, and understandable as a system.
 
-## What TkMachina Adds
+Raw Tk remains available as an escape hatch through `associate["tk"]`. The goal:
+*ordinary behavior should rarely require raw Tk.* If authors routinely need raw
+Tk for ordinary behavior, that is evidence the associate type is under-modeled.
 
-TkMachina adds a visible runtime model.
-
-Castles are stateful UI regions.
-
-Associates are modeled companions to widgets.
-
-`desired` is widget-facing state to project.
-
-`observed` is the associate's modeled observation surface.
-
-`private` is associate implementation detail.
-
-Events are semantic messages.
-
-Spots are named places where associates or child castles can be placed.
-
-Routes move messages between outboxes and inboxes.
-
-Structural requests let the runtime clear, build, or replace spot occupancy.
-
-## The Cost
-
-TkMachina adds machinery.
-
-It is not a thinner Tkinter. It is a modeled Tkinter.
-
-If you want the smallest possible Tk script, or a tiny throwaway dialog, raw Tk
-is probably clearer.
-
-## The Payoff
-
-The payoff is not fewer lines.
-
-The payoff is that the running UI becomes more inspectable, replaceable,
-routable, and understandable as a system.
-
-Use TkMachina when:
-
-- your UI has regions that should be built, cleared, or replaced as units
-- you want events to be semantic messages instead of scattered callbacks
-- you want desired widget state to be inspectable data
-- you want observed widget facts to have a public modeled surface
-- you want child UI regions to be castles, not arbitrary frames
-- you want destruction and cleanup to be part of the runtime model
-- you want to reduce routine reasons to touch raw Tk widgets
-
-Do not use TkMachina if:
-
-- you want the smallest possible Tk script
-- you are building a simple throwaway dialog
-- you already enjoy direct widget-callback code
-- you need every obscure Tk feature immediately modeled
-- you do not want a runtime layer
-
-## Raw Tk Remains Available
-
-TkMachina does not prevent raw Tk access.
-
-`associate["tk"]` remains available as an escape hatch for advanced, unusual,
-or unmodeled behavior.
-
-The goal is different:
-
-```text
-ordinary behavior should rarely require raw Tk
-```
-
-If authors routinely need raw Tk for ordinary behavior, that is evidence the
-associate type is under-modeled.
-
-If authors need raw Tk for rare, advanced, or widget-specific behavior, that is
-acceptable.
+Do not use TkMachina for the smallest possible Tk script, a throwaway dialog, or
+if you simply enjoy direct widget-callback code. Use it when your UI has regions
+to build/clear/replace as units, when you want events to be semantic messages
+instead of scattered callbacks, and when you want the running application to be
+data you can inspect.
